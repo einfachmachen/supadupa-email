@@ -54,6 +54,15 @@ Header-Bearbeitung, nicht nur für diese.
 
 ### 2. Anhänge prüfen
 
+**Was als Anhang gilt** (die Regel hat es in sich): Ein ausdrückliches
+`Content-Disposition: attachment` schlägt alles. Outlook packt echte Anhänge
+in ein `multipart/related` und gibt ihnen zusätzlich eine `Content-ID` —
+werden die als „eingebettete Bilder" abgetan, verschwinden komplette PDFs
+aus der Liste. Ein Teil mit Content-ID zählt nur dann zum Text, wenn das HTML
+ihn auch wirklich per `cid:` einbindet; ein *verwaister* cid-Teil landet in
+der Anhangsliste. **Leitsatz: Nichts darf lautlos verschwinden** — lieber ein
+Eintrag zu viel als eine verlorene Datei.
+
 Pro Anhang: Name, Typ, Größe — plus Plausibilitätsprüfung des Dateinamens:
 
 - nichtssagende Namen (`ATT00001.pdf`, `Dokument1.pdf`, `scan_0001.pdf`, `image001.png`),
@@ -335,7 +344,7 @@ sauberer Empfänger in der anderen), statt „löschen“ lieber
 npm test      # node:test, keine Abhängigkeiten
 ```
 
-120 Tests decken Header-Kodierung, das Byte-genaue Umschreiben der
+126 Tests decken Header-Kodierung, das Byte-genaue Umschreiben der
 Roh-Nachricht, die Empfängerprüfung samt Vorschlägen, die
 Dateinamen-Plausibilität, den Textvergleich sowie Gruppierung und
 Kopie-Bewertung der Duplikatsuche, die MIME-Teil-Umbenennung und den
@@ -344,7 +353,9 @@ Neubau vollständiger Nachrichten sowie das Dekodieren und Hashen von
 Anhängen ab (inklusive eines Laufs über 10.000 Kopfdatensätze und des Falls
 „10 Kopien × 5 Anhänge → 5 Einträge") sowie das Aufbereiten einer echten
 Word-Mail (Testdaten anonymisiert) sowie das Ergänzen fehlender
-Inline-Bilder und den Neubau mit `multipart/related`.
+Inline-Bilder, den Neubau mit `multipart/related` und die Anhang-Erkennung in
+einer echten Outlook-Nachricht (Anhänge mit Content-ID, gefaltete
+RFC-2047-Dateinamen, verwaistes cid-Bild).
 
 ## Aufbau
 

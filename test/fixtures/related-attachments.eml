@@ -1,0 +1,52 @@
+MIME-Version: 1.0
+Message-ID: <beispiel@example.test>
+Date: Thu, 13 Mar 2025 09:01:15 +0100
+Subject: =?UTF-8?B?TmViZW5rb3N0ZW5hYnJlY2hudW5nIGbDvHIgZGFzIEphaHIgMjAyNA==?=
+From: "=?UTF-8?B?QmVybmQgTXVzdGVy?=" <b.muster@example.org>
+To: "=?UTF-8?B?bG9ja2VyIGFuZ2VoZW4=?=" <anna.beispiel@example.de>
+Content-Type: multipart/related; boundary="OLMC_MultiPart_6"
+
+This is a multi-part message in MIME format.
+
+--OLMC_MultiPart_6
+Content-Type: text/html; charset=utf-8
+Content-Transfer-Encoding: base64
+
+PCFET0NUWVBFIGh0bWw+PGh0bWw+PGhlYWQ+PG1ldGEgaHR0cC1lcXVpdj0i
+Q29udGVudC1UeXBlIiBjb250ZW50PSJ0ZXh0L2h0bWw7IGNoYXJzZXQ9dXRm
+LTgiPjwvaGVhZD48Ym9keT48cD5TZWhyIGdlZWhydGUgTWlldGVyaW5uZW4g
+dW5kIE1pZXRlciw8L3A+PHA+YWxzIEFubGFnZSBzZW5kZSBpY2ggSWhuZW4g
+ZGllIE5lYmVua29zdGVuYWJyZWNobnVuZy48L3A+PHA+PGltZyBzcmM9ImNp
+ZDpsb2dvQGV4YW1wbGUudGVzdCI+PC9wPjwvYm9keT48L2h0bWw+
+--OLMC_MultiPart_6
+Content-Type: application/pdf;
+	 name="=?UTF-8?B?UEtTOTZfTktfT0dfQmVpc3BpZWxfMjAyNC5wZGY=?="
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment;
+	 filename="=?UTF-8?B?UEtTOTZfTktfT0dfQmVpc3BpZWxfMjAyNC5wZGY=?="
+Content-ID: <PKS96_NK@EURP190.PROD.OUTLOOK.COM>
+
+JVBERi0xLjcKMSAwIG9iago8PD4+CmVuZG9iagolJUVPRgo=
+--OLMC_MultiPart_6
+Content-Type: application/pdf;
+	 name="=?UTF-8?B?RWluemVsYWJyZWNobnVuZ18wMjU0MDA2MThfMjAyNF8wMDAyXzBfQW5uYSBCZWlzcGllbF8yMF8wMV8yMDI1XzcucGRm?="
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment;
+	 filename="=?UTF-8?B?RWluemVsYWJyZWNobnVuZ18wMjU0MDA2MThfMjAyNF8wMDAyXzBfQW5uYSBCZWlzcGllbF8yMF8wMV8yMDI1XzcucGRm?="
+Content-ID: <EINZELAB@EURP190.PROD.OUTLOOK.COM>
+
+JVBERi0xLjcKMSAwIG9iago8PD4+CmVuZG9iagolJUVPRgo=
+--OLMC_MultiPart_6
+Content-Type: image/png; name="logo.png"
+Content-Transfer-Encoding: base64
+Content-ID: <logo@example.test>
+Content-Disposition: inline; filename="logo.png"
+
+iVBORw0KGgoAAQIDBAUGBwgJCgsMDQ4PEBESEw==
+--OLMC_MultiPart_6
+Content-Type: image/png; name="verwaist.png"
+Content-Transfer-Encoding: base64
+Content-ID: <verwaist@example.test>
+
+iVBORw0KGgoAAQIDBAUGBwgJCgsMDQ4PEBESEw==
+--OLMC_MultiPart_6--
