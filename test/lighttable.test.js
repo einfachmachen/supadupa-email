@@ -284,3 +284,28 @@ test("Umlaut-Betreff und Umlaut-Dateiname überstehen den Bau", () => {
   assert.match(getHeader(head, "Subject"), /^=\?UTF-8\?B\?/);
   assert.equal(listAttachmentParts(bytes)[0].filename, "Rechnung Jörg.pdf");
 });
+
+// ------------------------------------------------- Umschalten auf eine Fassung
+
+test("Steuerzeichen sichtbar machen für den Modus „Original“", async () => {
+  const { visualize } = await import("../lib/textclean.js");
+  const out = visualize(`A${ZW}B${NBSP}C${SHY}D`);
+  assert.equal(out, "A⌷B␣C¬D");
+  assert.ok(!/[​ ­]/.test(out), "kein unsichtbarer Rest");
+});
+
+test("Textvariante lässt sich einer Kopie zuordnen (Klick auf Datum)", () => {
+  const c = collectCandidates(copies, { profiles: PROFILES });
+  for (const copy of copies) {
+    const variant = c.bodies.find((b) => b.sources.includes(copy.id));
+    assert.ok(variant, `Kopie ${copy.id} hat keine zuordenbare Textfassung`);
+    assert.equal(variant.cleaned, clean(copy.bodyText));
+  }
+});
+
+test("Anhang-Namensvariante je Kopie ist abrufbar", () => {
+  const atts = collectAttachments(copies);
+  const fuenf = atts.find((a) => a.size === 5000);
+  assert.equal(fuenf.sources.find((s) => s.copyId === 2).name, "Rechnung_2024-0815.pdf");
+  assert.equal(fuenf.sources.find((s) => s.copyId === 1).name, "ATT00001.pdf");
+});

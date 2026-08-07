@@ -355,7 +355,8 @@ details > summary {
 }
 
 /* ---------------------------------------------------------- Leuchttisch ---
-   Mitte: überlagerte Textvarianten. Ringsum: die Bestandteile zur Auswahl. */
+   Regel: Die lesbare E-Mail bekommt den Platz. Alles andere ist zugeklappt,
+   bis es gebraucht wird. */
 
 .lt-overlay {
   position: fixed;
@@ -363,35 +364,203 @@ details > summary {
   background: var(--bg);
   z-index: 50;
   overflow: auto;
-  padding: 14px 14px 90px;
-}
-.lt-grid {
-  max-width: 1180px;
-  margin: 0 auto;
-  display: grid;
-  gap: 12px;
-  grid-template-columns: 1fr;
-}
-@media (min-width: 900px) {
-  .lt-grid {
-    grid-template-columns: 290px minmax(0, 1fr) 290px;
-    align-items: start;
-  }
-  .lt-top,
-  .lt-bottom {
-    grid-column: 1 / -1;
-  }
+  padding: 12px 16px 84px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
-.lt-panel {
+/* Kopfzeile: eine Zeile, keine Absätze */
+.lt-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.lt-title {
+  flex: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+.lt-title > span:first-child {
+  font-size: 18px;
+}
+.lt-sub {
+  font-size: 12px;
+  color: var(--lbl);
+}
+.lt-help {
   background: var(--surf);
   border: 1px solid var(--bd);
-  border-radius: 14px;
-  padding: 12px;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 13px;
+  color: var(--txt2);
+}
+
+/* Fassungen: Datum zuoberst, ein Klick schaltet die ganze Ansicht um */
+.lt-versions {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+.lt-version {
+  flex: none;
+  text-align: left;
+  padding: 7px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--bd);
+  background: var(--surf);
+  min-height: 0;
+}
+.lt-version.on {
+  border-color: var(--pos);
+  background: rgba(170, 204, 0, 0.1);
+}
+.lt-version .d {
+  font-family: var(--num-font);
+  font-variant-numeric: tabular-nums;
+  font-size: 14px;
+}
+.lt-version .s {
+  font-size: 11px;
+  color: var(--lbl);
+  margin-top: 2px;
+}
+
+/* Betreff: groß und direkt bearbeitbar */
+.lt-subject input {
+  width: 100%;
+  font-size: 19px;
+  padding: 10px 12px;
+  background: var(--surf);
+}
+.lt-subject .chips {
+  margin-top: 6px;
+}
+
+/* Der Text — nimmt allen übrigen Platz ein */
+.lt-main {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 42vh;
+  gap: 8px;
+}
+.lt-modes {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.lt-junk {
+  font-size: 11.5px;
+  color: var(--gold);
+}
+.lt-read {
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 46vh;
+  resize: vertical;
+  background: var(--surf);
+  border-radius: 12px;
+  padding: 16px 18px;
+  font-size: 15px;
+  line-height: 1.6;
+}
+.lt-light {
+  flex: 1 1 auto;
+  background: var(--surf);
+  border: 1px solid var(--bd);
+  border-radius: 12px;
+  padding: 14px 16px;
+  min-height: 46vh;
+  max-height: 62vh;
+  overflow: auto;
+  font-size: 14.5px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.lt-raw {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 13px;
+}
+.lt-line {
+  padding: 1px 4px;
+  border-radius: 4px;
+}
+.lt-line.all {
+  color: var(--txt);
+}
+.lt-line.some {
+  color: var(--gold);
+  background: rgba(245, 166, 35, 0.09);
+}
+.lt-line.one {
+  color: var(--txt2);
+  background: rgba(255, 255, 255, 0.04);
+  border-left: 2px solid var(--bds);
+}
+.lt-legend {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-size: 11.5px;
+  color: var(--lbl);
+}
+.lt-legend .l-all {
+  color: var(--txt);
+}
+.lt-legend .l-some {
+  color: var(--gold);
+}
+.lt-legend .l-one {
+  color: var(--txt2);
+}
+
+/* Zugeklappte Bereiche: Zusammenfassung reicht, bis man mehr will */
+.lt-details {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.lt-fold {
+  background: var(--surf);
+  border: 1px solid var(--bd);
+  border-radius: 12px;
+  padding: 4px 12px;
+}
+.lt-fold.warn {
+  border-color: rgba(245, 166, 35, 0.5);
+}
+.lt-fold > summary {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  padding: 8px 0;
+  font-size: 13px;
+  color: var(--txt);
+}
+.lt-fold > summary .t {
+  min-width: 160px;
+}
+.lt-fold > summary .s {
+  flex: 1;
+  color: var(--lbl);
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+.lt-panel {
+  border-top: 1px solid var(--bd);
+  padding: 10px 0;
 }
 .lt-panel > h3 {
   margin: 0 0 8px;
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 700;
   font-synthesis: weight;
   letter-spacing: 0.4px;
@@ -399,7 +568,6 @@ details > summary {
   color: var(--lbl);
 }
 
-/* Eine Variante = eine wählbare Karte */
 .cand {
   border: 1px solid var(--bd);
   border-radius: 10px;
@@ -428,49 +596,6 @@ details > summary {
   font-size: 11.5px;
   color: var(--gold);
   margin-top: 3px;
-}
-.cand input[type="text"] {
-  width: 100%;
-  margin-top: 6px;
-  font-size: 13px;
-}
-
-/* Der eigentliche Leuchttisch: Zeilen aller Varianten übereinander */
-.lt-light {
-  background: var(--surf2);
-  border: 1px solid var(--bd);
-  border-radius: 12px;
-  padding: 10px 12px;
-  max-height: 62vh;
-  overflow: auto;
-  font-size: 13.5px;
-  line-height: 1.5;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-.lt-line {
-  padding: 1px 4px;
-  border-radius: 4px;
-}
-.lt-line.all {
-  color: var(--txt);
-}
-.lt-line.some {
-  color: var(--gold);
-  background: rgba(245, 166, 35, 0.09);
-}
-.lt-line.one {
-  color: var(--txt2);
-  background: rgba(255, 255, 255, 0.04);
-  border-left: 2px solid var(--bds);
-}
-.lt-legend {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-  font-size: 11.5px;
-  color: var(--lbl);
-  margin: 6px 0 8px;
 }
 
 .lt-att {
@@ -507,18 +632,10 @@ details > summary {
   bottom: 0;
   background: var(--surf);
   border-top: 1px solid var(--bd);
-  padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+  padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
   display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
+  gap: 12px;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-end;
   z-index: 51;
-}
-.lt-textedit {
-  width: 100%;
-  min-height: 180px;
-  font-family: var(--ui-font);
-  font-size: 13.5px;
-  line-height: 1.5;
 }

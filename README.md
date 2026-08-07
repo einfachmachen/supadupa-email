@@ -110,20 +110,35 @@ welcher Anhang wird wie umbenannt) zum Bestätigen oder Überspringen.
 
 ### 5. Leuchttisch: Bestandteile auswählen, neue Mail bauen
 
-Die Gegenüberstellung. **Leuchttisch öffnen** legt alle Kopien einer Gruppe
-übereinander:
+Die Gegenüberstellung. Gestaltungsregel: **Die lesbare E-Mail steht im
+Mittelpunkt** — alles andere ist zugeklappt, bis es gebraucht wird.
 
-- **Mitte** — der Text aller Fassungen überlagert, zeilenweise eingefärbt:
-  weiß = steht in allen Fassungen, gold = in mehreren, grau = nur in einer.
-  Darunter die Fassung zur Übernahme und ein Textfeld zum Nachbearbeiten.
-- **Links** — Betreff, Absender, Empfänger, Cc, Datum: jede vorhandene
-  Variante als anklickbare Karte, mit Herkunft („aus Kopie 2"), den Befunden
-  („Kein Anzeigename") und der Profil-Korrektur als Chip. Empfänger und Cc
-  zusätzlich frei editierbar.
-- **Rechts** — **alle Anhänge aller Kopien** in einer Liste. Derselbe Anhang
-  wird über Größe + MIME-Typ wiedererkannt, seine Namensvarianten hängen als
-  Chips daran. Haken = kommt mit, Textfeld = endgültiger Dateiname.
-- **Unten** — *Neue Nachricht erzeugen*.
+**Von oben nach unten:**
+
+1. **Fassungen** — je ein Knopf pro Kopie, beschriftet mit dem **Datum** und
+   einer Kurzlage („2 Anh. · Empfänger unklar · Zeichenmüll"). Ein Klick
+   schaltet die **ganze Ansicht** auf diese Fassung um: Text, Betreff,
+   Absender, Empfänger, Cc, Datum und die bevorzugten Anhang-Namen. Der erste
+   Knopf, *beste Fassung*, stellt die automatische Auswahl aus allen Kopien
+   wieder her.
+2. **Betreff** — groß und direkt bearbeitbar; abweichende Fassungen als Chips
+   darunter.
+3. **Der Text** — nimmt den größten Teil des Fensters ein, mit drei Modi:
+   - **Lesen** (Vorgabe): der gesäuberte Text, ohne jede Markierung, direkt
+     bearbeitbar — genau das, was gespeichert wird.
+   - **Vergleich**: alle Fassungen überlagert, Unterschiede farbig (weiß = in
+     allen, gold = in mehreren, grau = nur in einer).
+   - **Original**: der Rohtext der aktiven Fassung mit **sichtbar gemachten**
+     Steuerzeichen (`⌷` Zero-Width, `␣` geschütztes Leerzeichen, `¬`
+     bedingter Trennstrich, `␦` Steuerzeichen, `⇄` Schreibrichtung, `◆`
+     Ersatzzeichen).
+4. **Zugeklappt**: *Empfänger & Absender*, *Anhänge*, *Datum*. Jede Zeile
+   trägt ihre Kurzfassung („Max Mustermann <max@…>", „3 von 3 ausgewählt, 2
+   umbenannt") und wird gold umrandet, wenn dort etwas zu prüfen ist — so
+   siehst du zugeklappt, ob du hineinsehen musst. Erst beim Aufklappen werden
+   die Varianten gebaut.
+5. **Fußleiste**: *Ausgangs-Mails behalten* (Vorgabe an) und *Neue Nachricht
+   erzeugen*.
 
 Die neue Nachricht wird als **frisches multipart/mixed** gebaut: gewählte
 Kopfzeilen, gesäuberter Text als UTF-8/Quoted-Printable, und jeder gewählte
@@ -132,9 +147,6 @@ die Dateinamen-Kopfzeile wird neu geschrieben, die kodierte Nutzlast nie.
 Anders als beim automatischen Zusammenführen dürfen die Anhänge dabei aus
 **verschiedenen** Kopien stammen. Ein `X-SupaDupa-Merged-From`-Header hält
 fest, aus welchen Nachrichten sie gebaut wurde.
-
-Standardmäßig bleiben die Ausgangs-Mails **unangetastet** (Haken „Ausgangs-Mails
-behalten") — erst prüfen, dann aufräumen.
 
 ### 6. Inhalte vergleichen
 
@@ -280,7 +292,7 @@ sauberer Empfänger in der anderen), statt „löschen“ lieber
 npm test      # node:test, keine Abhängigkeiten
 ```
 
-89 Tests decken Header-Kodierung, das Byte-genaue Umschreiben der
+92 Tests decken Header-Kodierung, das Byte-genaue Umschreiben der
 Roh-Nachricht, die Empfängerprüfung samt Vorschlägen, die
 Dateinamen-Plausibilität, den Textvergleich sowie Gruppierung und
 Kopie-Bewertung der Duplikatsuche, die MIME-Teil-Umbenennung und den
