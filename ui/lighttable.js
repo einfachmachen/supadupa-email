@@ -13,11 +13,13 @@ import {
   loadForLightTable,
   takePart,
   takePartData,
+  inlineImages,
   importAssembled,
   folderOf,
   deleteMessages,
 } from "../lib/messageStore.js";
 import { previewKind, shortHash } from "../lib/attachcontent.js";
+import { buildReaderDocument, looksLikeHtml } from "../lib/htmlmail.js";
 
 const el = (tag, cls, text) => {
   const n = document.createElement(tag);
@@ -69,8 +71,13 @@ export async function openLightTable(ids, opts = {}) {
   const cands = collectCandidates(copies, { profiles });
   const sel = pickDefaults(cands, { profiles, ctx: { date: copies[0]?.date } });
 
+  const anyHtml = copies.some((c) => c.isHtml || looksLikeHtml(c.bodyText));
   const state = {
-    mode: "lesen", // lesen | vergleich | original
+    // "formatiert" nur, wenn es überhaupt HTML gibt — sonst wäre der erste
+    // Blick eine leere Anzeige.
+    mode: anyHtml ? "formatiert" : "lesen", // formatiert | lesen | vergleich | original
+    showHistory: false,
+    readerUrl: null,
     activeCopyId: null, // null = beste Fassung aus allen Kopien
     focusedAttachment: -1,
     preview: null, // Schließfunktion der offenen Vorschau
@@ -81,6 +88,7 @@ export async function openLightTable(ids, opts = {}) {
   document.body.style.overflow = "hidden";
   const close = () => {
     state.preview?.();
+    if (state.readerUrl) URL.revokeObjectURL(state.readerUrl);
     document.removeEventListener("keydown", onKey, true);
     overlay.remove();
     document.body.style.overflow = "";
@@ -236,8 +244,17 @@ export async function openLightTable(ids, opts = {}) {
       };
       return b;
     };
+    if (anyHtml) {
+      modes.append(
+        modeBtn(
+          "formatiert",
+          "Formatiert",
+          "Die Mail so, wie sie gemeint war — Word-Ballast entfernt, externe Bilder blockiert."
+        )
+      );
+    }
     modes.append(
-      modeBtn("lesen", "Lesen", "Gesäuberter Text, ohne Markierungen — so wird er gespeichert."),
+      modeBtn("lesen", "Text", "Gesäuberter Text, ohne Markierungen — so wird er gespeichert."),
       modeBtn("vergleich", "Vergleich", "Alle Fassungen überlagert, Unterschiede farbig."),
       modeBtn("original", "Original", "Rohtext der aktiven Fassung, Steuerzeichen sichtbar gemacht.")
     );
@@ -247,7 +264,9 @@ export async function openLightTable(ids, opts = {}) {
     if (junk) modes.append(el("span", "lt-junk", `entfernt: ${junk}`));
     main.append(modes);
 
-    if (state.mode === "vergleich") {
+    if (state.mode === "formatiert") {
+      main.append(readerView());
+    } else if (state.mode === "vergleich") {
       const light = el("div", "lt-light");
       const lines = overlayLines(cands.bodies);
       for (const line of lines) {
@@ -435,6 +454,57 @@ export async function openLightTable(ids, opts = {}) {
       panel.append(el("div", "src", "oder von Hand:"), edit);
     }
     return panel;
+  }
+
+  /**
+   * Formatierte Anzeige: Die Mail läuft in einem abgeschotteten iframe
+   * (kein `allow-scripts`, eigene CSP im Dokument, externe Bilder blockiert).
+   * Inline-Bilder kommen aus der Nachricht selbst.
+   */
+  function readerView() {
+    const wrap = el("div", "lt-reader");
+    const src = state.activeCopyId
+      ? byId.get(state.activeCopyId)
+      : copies.find((c) => c.isHtml || looksLikeHtml(c.bodyText)) || copies[0];
+
+    let images = new Map();
+    try {
+      images = inlineImages(src);
+    } catch (e) {
+      console.warn("Inline-Bilder nicht lesbar", e);
+    }
+
+    const built = buildReaderDocument(src.bodyText || "", {
+      images,
+      showHistory: state.showHistory,
+    });
+
+    const frame = document.createElement("iframe");
+    frame.className = "lt-frame";
+    frame.setAttribute("sandbox", ""); // keine Skripte, kein gleicher Ursprung
+    frame.title = "Formatierte Ansicht der Nachricht";
+    if (state.readerUrl) URL.revokeObjectURL(state.readerUrl);
+    state.readerUrl = URL.createObjectURL(
+      new Blob([built.document], { type: "text/html" })
+    );
+    frame.src = state.readerUrl;
+    wrap.append(frame);
+
+    const note = el("div", "lt-legend");
+    note.append(el("span", null, `Fassung vom ${fmtDate(src.date)}`));
+    if (built.historyBlocks) {
+      note.append(el("span", null, `${built.historyBlocks} zitierte Vorgänger (im Dokument aufklappbar)`));
+    }
+    if (built.blockedRemote) {
+      const w = el("span", null, `${built.blockedRemote} externe Bilder blockiert`);
+      w.style.color = "var(--gold)";
+      note.append(w);
+    }
+    if (built.missingCid) {
+      note.append(el("span", null, `${built.missingCid} eingebettete Bilder fehlen in dieser Kopie`));
+    }
+    wrap.append(note);
+    return wrap;
   }
 
   function attachmentPanel() {

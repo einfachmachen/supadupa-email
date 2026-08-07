@@ -707,3 +707,20 @@ details > summary {
   border-color: var(--pos);
   box-shadow: 0 0 0 2px rgba(170, 204, 0, 0.25);
 }
+
+/* Formatierte Anzeige der Mail */
+.lt-reader {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+}
+.lt-frame {
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 52vh;
+  border: 1px solid var(--bd);
+  border-radius: 12px;
+  background: #fff;
+}

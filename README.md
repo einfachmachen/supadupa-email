@@ -123,8 +123,15 @@ Mittelpunkt** — alles andere ist zugeklappt, bis es gebraucht wird.
    wieder her.
 2. **Betreff** — groß und direkt bearbeitbar; abweichende Fassungen als Chips
    darunter.
-3. **Der Text** — nimmt den größten Teil des Fensters ein, mit drei Modi:
-   - **Lesen** (Vorgabe): der gesäuberte Text, ohne jede Markierung, direkt
+3. **Der Text** — nimmt den größten Teil des Fensters ein, mit vier Modi:
+   - **Formatiert** (Vorgabe bei HTML-Mails): die Mail so, wie sie gemeint
+     war. Word-/Outlook-Ballast (`mso-*`, `<o:p>`, `MsoNormal`, bedingte
+     Kommentare, Bilder mit `width="1154"`) fliegt raus, der zitierte Verlauf
+     steckt zusammengeklappt in einem `<details>`, Inline-Bilder (`cid:`)
+     kommen aus der Nachricht selbst. Angezeigt wird in einem **iframe ohne
+     Skriptrechte** mit eigener `default-src 'none'`-CSP; externe Bilder
+     werden blockiert und als Platzhalter markiert (keine Zählpixel).
+   - **Text**: der gesäuberte Klartext, ohne jede Markierung, direkt
      bearbeitbar — genau das, was gespeichert wird.
    - **Vergleich**: alle Fassungen überlagert, Unterschiede farbig (weiß = in
      allen, gold = in mehreren, grau = nur in einer).
@@ -300,14 +307,15 @@ sauberer Empfänger in der anderen), statt „löschen“ lieber
 npm test      # node:test, keine Abhängigkeiten
 ```
 
-103 Tests decken Header-Kodierung, das Byte-genaue Umschreiben der
+111 Tests decken Header-Kodierung, das Byte-genaue Umschreiben der
 Roh-Nachricht, die Empfängerprüfung samt Vorschlägen, die
 Dateinamen-Plausibilität, den Textvergleich sowie Gruppierung und
 Kopie-Bewertung der Duplikatsuche, die MIME-Teil-Umbenennung und den
 Zusammenführungs-Plan, die Zeichen-Säuberung, das Kandidaten-Modell und den
 Neubau vollständiger Nachrichten sowie das Dekodieren und Hashen von
 Anhängen ab (inklusive eines Laufs über 10.000 Kopfdatensätze und des Falls
-„10 Kopien × 5 Anhänge → 5 Einträge").
+„10 Kopien × 5 Anhänge → 5 Einträge") sowie das Aufbereiten einer echten
+Word-Mail (Testdaten anonymisiert).
 
 ## Aufbau
 
@@ -323,6 +331,7 @@ Anhängen ab (inklusive eines Laufs über 10.000 Kopfdatensätze und des Falls
 | `lib/dedupe.js` | Duplikat-Gruppen, Inhalts-Prüfsumme, Bewertung „welche Kopie bleibt“ |
 | `lib/mimeparts.js` | MIME-Teile begehen, herausschneiden, Dateinamen setzen |
 | `lib/textclean.js` | Steuer-/Sonderzeichen erkennen und entfernen |
+| `lib/htmlmail.js` | Word-HTML aufräumen, Verlauf trennen, Lesedokument bauen |
 | `lib/candidates.js` | Leuchttisch-Modell: Varianten je Bestandteil, Vorauswahl |
 | `lib/assemble.js` | neue RFC-5322/MIME-Nachricht aus gewählten Teilen bauen |
 | `lib/merge.js` | Zusammenführungs-Plan: Grundlage, beste Empfänger, Umbenennungen |
