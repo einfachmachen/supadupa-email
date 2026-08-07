@@ -12,10 +12,12 @@ import { checkRecipientList } from "../lib/recipients.js";
 import {
   loadForLightTable,
   takePart,
+  takePartData,
   importAssembled,
   folderOf,
   deleteMessages,
 } from "../lib/messageStore.js";
+import { previewKind, shortHash } from "../lib/attachcontent.js";
 
 const el = (tag, cls, text) => {
   const n = document.createElement(tag);
@@ -54,8 +56,14 @@ export async function openLightTable(ids, opts = {}) {
 
   const copies = [];
   for (const id of ids) {
-    onStatus(`Leuchttisch: lese ${copies.length + 1}/${ids.length} …`);
-    copies.push(await loadForLightTable(id));
+    const nr = copies.length + 1;
+    onStatus(`Leuchttisch: lese ${nr}/${ids.length} …`);
+    copies.push(
+      await loadForLightTable(id, {
+        onProgress: (done, total) =>
+          onStatus(`Leuchttisch: lese ${nr}/${ids.length} · Anhang ${done}/${total} …`),
+      })
+    );
   }
   const byId = new Map(copies.map((c) => [c.id, c]));
   const cands = collectCandidates(copies, { profiles });
@@ -64,15 +72,45 @@ export async function openLightTable(ids, opts = {}) {
   const state = {
     mode: "lesen", // lesen | vergleich | original
     activeCopyId: null, // null = beste Fassung aus allen Kopien
+    focusedAttachment: -1,
+    preview: null, // Schließfunktion der offenen Vorschau
   };
 
   const overlay = el("div", "lt-overlay");
   document.body.append(overlay);
   document.body.style.overflow = "hidden";
   const close = () => {
+    state.preview?.();
+    document.removeEventListener("keydown", onKey, true);
     overlay.remove();
     document.body.style.overflow = "";
   };
+
+  /**
+   * Leertaste = Vorschau, wie im Finder. Nur wenn der Fokus NICHT in einem
+   * Eingabefeld steht — dort muss ein Leerzeichen ein Leerzeichen bleiben.
+   */
+  function onKey(ev) {
+    const tag = (document.activeElement?.tagName || "").toLowerCase();
+    const typing = tag === "input" || tag === "textarea" || document.activeElement?.isContentEditable;
+    if (ev.key === "Escape") {
+      if (state.preview) {
+        ev.preventDefault();
+        state.preview();
+      }
+      return;
+    }
+    if (ev.key !== " " || typing) return;
+    ev.preventDefault();
+    if (state.preview) {
+      state.preview();
+      return;
+    }
+    const row = document.activeElement?.closest?.("[data-att-index]");
+    const idx = row ? Number(row.dataset.attIndex) : state.focusedAttachment;
+    if (idx >= 0) openPreview(idx);
+  }
+  document.addEventListener("keydown", onKey, true);
 
   /**
    * Eine Kopie zur aktiven machen: Text, Betreff, Adressen, Datum und die
@@ -401,10 +439,25 @@ export async function openLightTable(ids, opts = {}) {
 
   function attachmentPanel() {
     const panel = el("div", "lt-panel");
-    if (!cands.attachments.length) panel.append(el("div", "muted", "Keine Anhänge."));
-    for (const att of cands.attachments) {
+    if (!cands.attachments.length) {
+      panel.append(el("div", "muted", "Keine Anhänge."));
+      return panel;
+    }
+    panel.append(
+      el(
+        "div",
+        "muted",
+        "Gleiche Dateien sind über ihren Inhalt zusammengefasst. " +
+          "Zeile anklicken und LEERTASTE drücken öffnet die Vorschau."
+      )
+    );
+
+    cands.attachments.forEach((att, i) => {
       const st = sel.attachments.find((x) => x.key === att.key);
       const row = el("div", `lt-att${st.include ? "" : " off"}`);
+      row.tabIndex = 0;
+      row.dataset.attIndex = String(i);
+
       const box = document.createElement("input");
       box.type = "checkbox";
       box.checked = st.include;
@@ -413,15 +466,16 @@ export async function openLightTable(ids, opts = {}) {
         st.include = box.checked;
         row.classList.toggle("off", !box.checked);
       };
+
       const body = el("div", "body");
-      body.append(
-        el(
-          "div",
-          "meta",
-          `${att.contentType || "unbekannt"} · ${fmtSize(att.size)} · in Kopie ` +
-            `${[...new Set(att.sources.map((s) => s.copyId))].join(", ")}`
-        )
-      );
+      const copies_ = [...new Set(att.sources.map((s2) => s2.copyId))];
+      const meta = el("div", "meta");
+      meta.textContent =
+        `${att.contentType || "unbekannt"} · ${fmtSize(att.size)} · ` +
+        `in ${copies_.length} von ${copies.length} Fassungen` +
+        (att.hash ? ` · ${shortHash(att.hash)}` : "");
+      body.append(meta);
+
       const nameIn = document.createElement("input");
       nameIn.type = "text";
       nameIn.value = st.filename;
@@ -429,10 +483,12 @@ export async function openLightTable(ids, opts = {}) {
         st.filename = nameIn.value.trim();
       });
       body.append(nameIn, el("div", "meta", st.reason || ""));
+
       if (att.names.length > 1) {
         const chips = el("div", "chips");
         for (const n of att.names) {
           const c = el("button", "chip", n);
+          c.title = "Diesen Namen übernehmen";
           c.onclick = () => {
             st.filename = n;
             nameIn.value = n;
@@ -441,10 +497,96 @@ export async function openLightTable(ids, opts = {}) {
         }
         body.append(chips);
       }
-      row.append(box, body);
+
+      const view = el("button", "chip", "Ansehen (Leertaste)");
+      view.onclick = () => openPreview(i);
+      const kind = previewKind(att.contentType, st.filename);
+      if (kind === "none") view.title = "Kein eingebauter Betrachter — wird zum Speichern angeboten.";
+      row.append(box, body, view);
+      row.addEventListener("focus", () => {
+        state.focusedAttachment = i;
+      });
+      row.addEventListener("click", () => {
+        state.focusedAttachment = i;
+      });
       panel.append(row);
-    }
+    });
     return panel;
+  }
+
+  /** Vorschau eines Anhangs — Bild, PDF und Text direkt, Rest zum Speichern. */
+  function openPreview(i) {
+    const att = cands.attachments[i];
+    if (!att) return;
+    const st = sel.attachments.find((x) => x.key === att.key);
+    const source = att.sources[0];
+    let file;
+    try {
+      file = takePartData(byId.get(source.copyId), source.index);
+    } catch (e) {
+      onToast(`Anhang nicht lesbar: ${e.message}`, true);
+      return;
+    }
+
+    const name = st?.filename || file.filename || "anhang";
+    const type = file.contentType || "application/octet-stream";
+    const blob = new Blob([file.data], { type });
+    const url = URL.createObjectURL(blob);
+
+    const box = el("div", "lt-preview");
+    const bar = el("div", "lt-preview-bar");
+    bar.append(el("div", "n", name));
+    bar.append(el("div", "m", `${type} · ${fmtSize(file.data.length)}`));
+    const save = document.createElement("a");
+    save.className = "chip";
+    save.href = url;
+    save.download = name;
+    save.textContent = "Speichern";
+    const close2 = el("button", "chip", "Schließen (Esc)");
+    bar.append(save, close2);
+    box.append(bar);
+
+    const kind = previewKind(type, name);
+    const stage = el("div", "lt-preview-stage");
+    if (kind === "image") {
+      const img = document.createElement("img");
+      img.src = url;
+      img.alt = name;
+      stage.append(img);
+    } else if (kind === "pdf") {
+      const frame = document.createElement("iframe");
+      frame.src = url;
+      frame.title = name;
+      stage.append(frame);
+    } else if (kind === "text") {
+      const pre = el("div", "lt-preview-text");
+      pre.textContent = new TextDecoder("utf-8").decode(file.data).slice(0, 200000);
+      stage.append(pre);
+    } else {
+      stage.append(
+        el(
+          "div",
+          "muted",
+          `Für ${type} gibt es hier keinen Betrachter — über „Speichern“ öffnest du ` +
+            "die Datei im System (unter macOS dann mit Leertaste als Quick Look)."
+        )
+      );
+    }
+    box.append(stage);
+
+    const done = () => {
+      URL.revokeObjectURL(url);
+      box.remove();
+      state.preview = null;
+      document.querySelector(`[data-att-index="${i}"]`)?.focus();
+    };
+    close2.onclick = done;
+    box.addEventListener("click", (ev) => {
+      if (ev.target === box) done();
+    });
+    state.preview = done;
+    document.body.append(box);
+    box.focus();
   }
 
   function datePanel() {

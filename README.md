@@ -132,12 +132,20 @@ Mittelpunkt** — alles andere ist zugeklappt, bis es gebraucht wird.
      Steuerzeichen (`⌷` Zero-Width, `␣` geschütztes Leerzeichen, `¬`
      bedingter Trennstrich, `␦` Steuerzeichen, `⇄` Schreibrichtung, `◆`
      Ersatzzeichen).
-4. **Zugeklappt**: *Empfänger & Absender*, *Anhänge*, *Datum*. Jede Zeile
+4. **Anhänge** (zugeklappt): über ihren **Inhalt** zusammengefasst — SHA-256
+   über die dekodierten Dateibytes. 10 Kopien mit je 5 Anhängen ergeben genau
+   **5 Einträge**, jeder mit allen vorkommenden Namensvarianten als Chips und
+   einem frei editierbaren Dateinamen. Zeile anklicken und **Leertaste**
+   drücken öffnet die **Vorschau** (PDF, Bilder und Text direkt im Fenster,
+   Esc schließt, alles andere über „Speichern"). Der Typ wird aus den Bytes
+   erkannt — ein PDF, das sich als `application/octet-stream` ausgibt, wird
+   trotzdem angezeigt.
+5. **Weiter zugeklappt**: *Empfänger & Absender*, *Datum*. Jede Zeile
    trägt ihre Kurzfassung („Max Mustermann <max@…>", „3 von 3 ausgewählt, 2
    umbenannt") und wird gold umrandet, wenn dort etwas zu prüfen ist — so
    siehst du zugeklappt, ob du hineinsehen musst. Erst beim Aufklappen werden
    die Varianten gebaut.
-5. **Fußleiste**: *Ausgangs-Mails behalten* (Vorgabe an) und *Neue Nachricht
+6. **Fußleiste**: *Ausgangs-Mails behalten* (Vorgabe an) und *Neue Nachricht
    erzeugen*.
 
 Die neue Nachricht wird als **frisches multipart/mixed** gebaut: gewählte
@@ -292,13 +300,14 @@ sauberer Empfänger in der anderen), statt „löschen“ lieber
 npm test      # node:test, keine Abhängigkeiten
 ```
 
-92 Tests decken Header-Kodierung, das Byte-genaue Umschreiben der
+103 Tests decken Header-Kodierung, das Byte-genaue Umschreiben der
 Roh-Nachricht, die Empfängerprüfung samt Vorschlägen, die
 Dateinamen-Plausibilität, den Textvergleich sowie Gruppierung und
 Kopie-Bewertung der Duplikatsuche, die MIME-Teil-Umbenennung und den
 Zusammenführungs-Plan, die Zeichen-Säuberung, das Kandidaten-Modell und den
-Neubau vollständiger Nachrichten ab (inklusive eines Laufs über 10.000
-Kopfdatensätze).
+Neubau vollständiger Nachrichten sowie das Dekodieren und Hashen von
+Anhängen ab (inklusive eines Laufs über 10.000 Kopfdatensätze und des Falls
+„10 Kopien × 5 Anhänge → 5 Einträge").
 
 ## Aufbau
 
@@ -310,6 +319,7 @@ Kopfdatensätze).
 | `lib/rawmail.js` | Header im Byte-Strom lesen/ersetzen/falten |
 | `lib/recipients.js` | Profile, Empfängerprüfung, Korrekturvorschläge |
 | `lib/attachments.js` | Anhang- und Dateinamen-Plausibilität |
+| `lib/attachcontent.js` | Inhalts-Hash, Typ-Erkennung aus Bytes, Vorschau-Eignung |
 | `lib/dedupe.js` | Duplikat-Gruppen, Inhalts-Prüfsumme, Bewertung „welche Kopie bleibt“ |
 | `lib/mimeparts.js` | MIME-Teile begehen, herausschneiden, Dateinamen setzen |
 | `lib/textclean.js` | Steuer-/Sonderzeichen erkennen und entfernen |

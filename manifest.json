@@ -20,7 +20,9 @@
     "storage"
   ],
   "background": {
-    "scripts": ["background.js"],
+    "scripts": [
+      "background.js"
+    ],
     "type": "module"
   },
   "browser_action": {
@@ -37,5 +39,6 @@
   },
   "icons": {
     "32": "icons/check-32.svg"
-  }
+  },
+  "content_security_policy": "script-src 'self'; object-src 'self' blob:; frame-src 'self' blob:; img-src 'self' blob: data:"
 }
