@@ -12,7 +12,14 @@ import {
   profileNames,
   applySuggestions,
 } from "../lib/recipients.js";
-import { groupDuplicates, summarize, removableIds, MODES } from "../lib/dedupe.js";
+import {
+  groupDuplicates,
+  summarize,
+  removableIds,
+  verifyGroup,
+  MODES,
+} from "../lib/dedupe.js";
+import { buildMergePlan } from "../lib/merge.js";
 import { checkAttachments, suggestName } from "../lib/attachments.js";
 import { compareTexts, classify, compareFacts, htmlToText } from "../lib/similarity.js";
 import {
@@ -22,6 +29,8 @@ import {
   listFolders,
   listAllMessages,
   deleteMessages,
+  mergeParts,
+  mergeGroup,
   contactPairs,
   messengerApi as api,
 } from "../lib/messageStore.js";
@@ -321,6 +330,13 @@ function renderGroup(g) {
 
   const badges = el("div", "badges");
   badges.append(el("span", "badge warn", `${g.messages.length} Kopien`));
+  badges.append(
+    el(
+      "span",
+      `badge ${g.verified ? "ok" : ""}`,
+      g.verified ? "Inhalt identisch (geprüft)" : "Inhalt ungeprüft"
+    )
+  );
   for (const r of g.reasons) badges.append(el("span", "badge", r));
   card.append(badges);
 
@@ -355,6 +371,12 @@ function renderGroup(g) {
   }
 
   const bar = el("div", "bar");
+  const verify = el("button", "ghost", g.verified ? "Inhalt geprüft ✓" : "Inhalte prüfen");
+  verify.disabled = Boolean(g.verified);
+  verify.onclick = () => verifyOneGroup(g);
+  const merge = el("button", "primary", "Zu einer vollständigen Mail zusammenführen");
+  merge.onclick = () => mergeOneGroup(g);
+  bar.append(verify, merge);
   const del = el("button", "danger", `${g.messages.length - 1} Duplikate löschen`);
   del.onclick = async () => {
     const ids = removableIds(g);
@@ -367,6 +389,125 @@ function renderGroup(g) {
   sec.append(bar);
   card.append(sec);
   return card;
+}
+
+/**
+ * Lädt die Inhalte einer Gruppe und teilt sie anhand der Inhalts-Prüfsumme
+ * auf — erst danach ist „das ist wirklich dieselbe Nachricht“ belastbar.
+ */
+async function verifyOneGroup(g) {
+  const contents = new Map();
+  for (const m of g.messages) {
+    setStatus(`Prüfe Inhalte … ${contents.size + 1}/${g.messages.length}`);
+    try {
+      const full = await loadMessage(m.id);
+      contents.set(m.id, {
+        bodyText: bodyText(full),
+        attachments: full.attachments,
+      });
+      m._loaded = full;
+    } catch (e) {
+      console.warn("Inhalt nicht lesbar", m.id, e);
+    }
+  }
+  const parts = verifyGroup(g, contents);
+  const at = state.groups.indexOf(g);
+  state.groups.splice(at, 1, ...parts);
+  const dropped = g.messages.length - parts.reduce((n, p) => n + p.messages.length, 0);
+  renderGroups();
+  toast(
+    dropped
+      ? `Inhalte geprüft: ${dropped} Nachricht(en) waren KEINE Dublette und sind aus der Gruppe raus.`
+      : "Inhalte geprüft: alle Kopien sind inhaltlich identisch."
+  );
+  setStatus(`${state.groups.length} Gruppen`);
+}
+
+/** Baut aus einer Gruppe eine vollständige Nachricht und ersetzt die Kopien. */
+async function mergeOneGroup(g) {
+  if (state.busy) return;
+  state.busy = true;
+  try {
+    setStatus("Kopien werden gelesen …");
+    const copies = [];
+    for (const m of g.messages) {
+      const full = m._loaded || (await loadMessage(m.id));
+      m._loaded = full;
+      copies.push({
+        id: m.id,
+        to: full.to || "",
+        cc: full.cc || "",
+        size: m.size || 0,
+        attachments: full.attachments,
+        header: full.header,
+      });
+    }
+
+    // Grundlage bestimmen und deren echte MIME-Teile holen
+    const provisional = buildMergePlan({ copies, profiles: state.profiles, baseParts: [], ctx: {} });
+    const baseCopy = copies.find((c) => c.id === provisional.baseId) || copies[0];
+    const baseFull = g.messages.find((m) => m.id === baseCopy.id)._loaded;
+    const { parts } = await mergeParts(baseCopy.id);
+
+    const plan = buildMergePlan({
+      copies,
+      profiles: state.profiles,
+      baseParts: parts,
+      baseId: baseCopy.id,
+      ctx: {
+        subject: baseFull.header.subject,
+        body: bodyText(baseFull),
+        date: baseFull.header.date,
+      },
+    });
+
+    const text =
+      "Aus den Kopien wird EINE vollständige Nachricht gebaut:\n\n" +
+      plan.notes.map((n) => `• ${n}`).join("\n") +
+      `\n\nDanach werden die ${plan.removableIds.length} bisherigen Kopien ` +
+      (($("#permDelete").checked && "ENDGÜLTIG gelöscht") || "in den Papierkorb verschoben") +
+      ".\n\nFortfahren?";
+    if (!window.confirm(text)) return;
+
+    setStatus("Vollständige Nachricht wird abgelegt …");
+    const { newId } = await mergeGroup({
+      baseId: plan.baseId,
+      headers: plan.headers,
+      renames: plan.renames,
+      deleteIds: plan.removableIds,
+      permanent: $("#permDelete").checked,
+    });
+
+    const gone = new Set(plan.removableIds);
+    state.headers = state.headers.filter((h) => !gone.has(h.id));
+    state.groups = state.groups.filter((x) => x !== g);
+    renderGroups();
+    toast("Zusammengeführt — die neue Nachricht liegt im selben Ordner.");
+    await loadIds([newId]);
+  } catch (e) {
+    console.error(e);
+    toast(`Zusammenführen fehlgeschlagen: ${e.message}`, true);
+  } finally {
+    state.busy = false;
+  }
+}
+
+async function mergeAllGroups() {
+  const groups = [...state.groups];
+  if (!groups.length) return;
+  if (
+    !window.confirm(
+      `${groups.length} Gruppen werden nacheinander zu je einer vollständigen ` +
+        "Nachricht zusammengeführt. Jede Gruppe zeigt vorher ihren Plan; mit " +
+        "„Abbrechen“ überspringst du sie. Starten?"
+    )
+  ) {
+    return;
+  }
+  for (const g of groups) {
+    if (!state.groups.includes(g)) continue;
+    await mergeOneGroup(g);
+  }
 }
 
 async function runDelete(ids, label) {
@@ -778,6 +919,7 @@ $("#modeSel").onchange = (e) => {
   if (state.headers.length) regroup();
 };
 $("#btnDeleteAll").onclick = deleteAllDupes;
+$("#btnMergeAll").onclick = mergeAllGroups;
 $("#btnKeepers").onclick = loadKeepers;
 $("#btnFixAll").onclick = fixAllRecipients;
 

@@ -74,7 +74,41 @@ nach Duplikat-Gruppen sortiert. Pro Gruppe wird die beste Kopie
 vorausgewählt, der Rest lässt sich in einem Rutsch entfernen. Details unter
 *Benutzung → Ganzen Ordner deduplizieren*.
 
-### 4. Inhalte vergleichen
+### 4. Fragmente zu einer vollständigen Mail zusammenführen
+
+Der Fall, für den es diese Erweiterung eigentlich gibt: Von derselben
+Nachricht liegen mehrere unvollständige Kopien herum — eine hat alle Anhänge,
+aber nur die nackte Adresse ohne Namen; eine andere hat den sauberen
+Empfänger und einen sprechenden Dateinamen, aber nur einen Teil der Anhänge.
+
+**Zu einer vollständigen Mail zusammenführen** baut daraus eine neue,
+vollständige Nachricht:
+
+1. **Grundlage** ist die Kopie mit den meisten/größten Anhängen — nur dort
+   liegen die Nutzdaten wirklich vor.
+2. Von den Geschwister-Kopien werden **ausschließlich Kopfdaten** übernommen:
+   die beste `To:`/`Cc:`-Zeile (danach noch gegen die Profile korrigiert) und
+   die besseren **Dateinamen** — ein Anhang wird über Größe + MIME-Typ in der
+   anderen Kopie wiedererkannt.
+3. Fehlt überall ein brauchbarer Dateiname, wird einer aus Datum, Betreff und
+   Belegnummer gebildet.
+4. Das Ergebnis wird als neue Nachricht in denselben Ordner gelegt, die alten
+   Kopien wandern in den Papierkorb.
+
+**Was dabei bewusst NICHT passiert:** Es wird nichts erfunden und nichts
+zusammengeschnitten, was nicht zusammengehört. Anhang-Nutzdaten werden nie
+zwischen Kopien verschoben — nur Kopfzeilen. Der Rumpf der Grundlage bleibt
+Byte für Byte erhalten, Base64-Nutzlast wird nicht angefasst. Vor dem
+Ausführen zeigt ein Dialog den kompletten Plan (welche Kopie liefert was,
+welcher Anhang wird wie umbenannt) zum Bestätigen oder Überspringen.
+
+> Grenze: Wenn eine Kopie einen Anhang hat, den die Grundlage **gar nicht**
+> enthält, wird er nicht hinüberkopiert — dafür müsste die MIME-Struktur neu
+> gebaut werden, und ein falsch zusammengesetztes Multipart ist schlimmer als
+> eine Kopie zu viel. Der Plan nennt in dem Fall die Grundlage mit ihrer
+> Anhangszahl, sodass du es siehst.
+
+### 5. Inhalte vergleichen
 
 Alle geladenen Nachrichten werden paarweise verglichen (Wort- und
 Bigramm-Ähnlichkeit, Zitate und Signaturen fliegen vorher raus, HTML wird zu
@@ -145,6 +179,9 @@ Knopf ändern.
 
 Drei Massen-Aktionen:
 
+- **Gruppen zusammenführen …** — geht die Gruppen der Reihe nach durch und
+  baut aus jeder eine vollständige Nachricht (Plan je Gruppe bestätigen oder
+  überspringen).
 - **Alle Duplikate in den Papierkorb** — löscht in jeder Gruppe alles außer
   der behaltenen Kopie (in Blöcken, mit Rückfrage; auf Wunsch endgültig statt
   Papierkorb).
@@ -154,9 +191,33 @@ Drei Massen-Aktionen:
   Nachrichten die Profil-Vorschläge an (nur dort, wo es überhaupt etwas zu
   ändern gibt), mit Rückfrage und Fortschrittsanzeige.
 
+### Der zuverlässige Weg (statt Kriterien-Raten)
+
+Klassische Duplikat-Werkzeuge lassen dich Vergleichskriterien ankreuzen —
+Absender, Betreff, Zeilenzahl, Größe, Versandzeit — und jede Kombination ist
+ein Kompromiss: zu streng findet nichts, zu locker löscht Falsches. Genau
+deshalb arbeitet diese Erweiterung **zweistufig**, ohne dass du Kriterien
+abwägen musst:
+
+1. **Grob gruppieren** (billig, nur Kopfdaten): findet *Kandidaten*. Hier darf
+   der Maßstab ruhig locker sein — es wird ja noch nichts gelöscht.
+2. **Inhalte prüfen** (pro Gruppe, ein Klick): lädt die Rümpfe und bildet eine
+   **Inhalts-Prüfsumme** aus dem normalisierten Text plus Größe und Typ jedes
+   Anhangs. Bewusst *nicht* eingerechnet: Empfänger-Zeile, Dateinamen,
+   Zeitstempel, Reihenfolge der Kopfzeilen, Leerraum — also genau die Dinge,
+   die bei deinen Fragmenten abweichen. Wer nicht dieselbe Prüfsumme hat,
+   fliegt aus der Gruppe.
+
+Erst danach ist „das ist wirklich dieselbe Nachricht“ eine belastbare Aussage
+— und zwar unabhängig davon, ob die Kopie einen Empfängernamen hatte oder wie
+ihr Anhang hieß. Eine geprüfte Gruppe trägt die Marke *Inhalt identisch
+(geprüft)*; ungeprüfte sagen das ebenso deutlich.
+
 **Empfohlene Reihenfolge bei vielen Duplikaten:** erst Duplikate löschen,
 dann die verbliebenen Kopien korrigieren — sonst korrigierst du Mails, die
-danach ohnehin wegfallen.
+danach ohnehin wegfallen. Wo es Fragmente sind (Anhänge in der einen Kopie,
+sauberer Empfänger in der anderen), statt „löschen“ lieber
+**zusammenführen** — das erledigt beides in einem Schritt.
 
 > Vorsicht beim Modus **locker**: Er gruppiert allein über Absender, Betreff
 > und Tag. Zwei echte, verschiedene Mails desselben Absenders mit gleichem
@@ -170,11 +231,11 @@ danach ohnehin wegfallen.
 npm test      # node:test, keine Abhängigkeiten
 ```
 
-53 Tests decken Header-Kodierung, das Byte-genaue Umschreiben der
+71 Tests decken Header-Kodierung, das Byte-genaue Umschreiben der
 Roh-Nachricht, die Empfängerprüfung samt Vorschlägen, die
 Dateinamen-Plausibilität, den Textvergleich sowie Gruppierung und
-Kopie-Bewertung der Duplikatsuche ab (inklusive eines Laufs über 10.000
-Kopfdatensätze).
+Kopie-Bewertung der Duplikatsuche, die MIME-Teil-Umbenennung und den
+Zusammenführungs-Plan ab (inklusive eines Laufs über 10.000 Kopfdatensätze).
 
 ## Aufbau
 
@@ -186,7 +247,9 @@ Kopfdatensätze).
 | `lib/rawmail.js` | Header im Byte-Strom lesen/ersetzen/falten |
 | `lib/recipients.js` | Profile, Empfängerprüfung, Korrekturvorschläge |
 | `lib/attachments.js` | Anhang- und Dateinamen-Plausibilität |
-| `lib/dedupe.js` | Duplikat-Gruppen, Bewertung „welche Kopie bleibt“ |
+| `lib/dedupe.js` | Duplikat-Gruppen, Inhalts-Prüfsumme, Bewertung „welche Kopie bleibt“ |
+| `lib/mimeparts.js` | MIME-Teile begehen, Dateinamen in Teil-Kopfzeilen setzen |
+| `lib/merge.js` | Zusammenführungs-Plan: Grundlage, beste Empfänger, Umbenennungen |
 | `lib/similarity.js` | Textnormalisierung, Ähnlichkeit, Faktenabgleich |
 | `lib/messageStore.js` | Thunderbird-APIs (lesen, importieren, löschen) |
 | `ui/tool.*` | Oberfläche (Design-Tokens nach SupaDupa-Design-Guide) |
