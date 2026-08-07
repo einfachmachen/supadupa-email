@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <title>E-Mail-Prüfung</title>
+    <link rel="stylesheet" href="tool.css" />
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="head">
+        <div class="tile">
+          <svg width="22" height="22" viewBox="0 0 32 32" fill="none" stroke="#AACC00" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="7" width="26" height="18" rx="3" />
+            <path d="M4 9l12 8 12-8" />
+            <path d="M12 20l3.5 3.5L23 16" />
+          </svg>
+        </div>
+        <div>
+          <h1>E-Mail-Prüfung</h1>
+          <div class="sub" id="status">Nachrichten werden geladen …</div>
+        </div>
+      </div>
+
+      <div class="bar">
+        <button id="btnSelection" class="primary">Auswahl laden</button>
+        <select id="folderSel" title="Ganzen Ordner laden">
+          <option value="">Ordner wählen …</option>
+        </select>
+        <button id="btnReload" class="ghost">Neu prüfen</button>
+      </div>
+
+      <details id="profileBox" class="card">
+        <summary>Meine Namen &amp; Adressen (Profile)</summary>
+        <p class="muted">
+          Ein Profil sagt: „Zu dieser Adresse gehört dieser Name.“ Daran misst die
+          Prüfung jede Empfänger-Angabe — fehlender, falscher oder abweichend
+          geschriebener Name wird dadurch überhaupt erst erkennbar.
+        </p>
+        <div id="profiles"></div>
+        <div class="bar" style="margin-top: 10px">
+          <button id="btnAddProfile" class="ghost">+ Profil</button>
+          <button id="btnFromBook" class="ghost">Aus Adressbuch übernehmen</button>
+          <button id="btnSaveProfiles" class="primary">Profile speichern</button>
+        </div>
+      </details>
+
+      <div id="list"></div>
+
+      <div id="compare" class="card hidden">
+        <section class="block" style="border-top: 0; margin-top: 0; padding-top: 0">
+          <h3>Inhaltsvergleich</h3>
+          <div id="compareBody"></div>
+        </section>
+      </div>
+    </div>
+
+    <div id="toast" class="toast hidden"></div>
+    <script type="module" src="tool.js"></script>
+  </body>
+</html>
