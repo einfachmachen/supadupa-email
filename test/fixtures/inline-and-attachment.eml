@@ -1,0 +1,61 @@
+MIME-Version: 1.0
+Message-ID: <einkauf@example.test>
+Date: Sun, 21 Mar 2021 18:12:00 +0100
+Subject: =?UTF-8?B?RWlua2F1ZnNsaXN0ZSBCQVVIQVVTIFJvbGxsYWRlbmTDpG1tdW5n?=
+From: "=?UTF-8?B?QW5uYSBCZWlzcGllbA==?=" <anna.beispiel@example.de>
+To: "=?UTF-8?B?QmVybmQgTXVzdGVy?=" <b.muster@example.org>
+Content-Type: multipart/related; type="text/html"; boundary="_004_BOUNDARY_"
+
+--_004_BOUNDARY_
+Content-Type: text/html; charset=utf-8
+Content-Transfer-Encoding: base64
+
+PGh0bWw+PGhlYWQ+PG1ldGEgaHR0cC1lcXVpdj0iQ29udGVudC1UeXBlIiBj
+b250ZW50PSJ0ZXh0L2h0bWw7IGNoYXJzZXQ9dXRmLTgiPjwvaGVhZD48Ym9k
+eT48ZGl2PjxwPkhhbGxvLDwvcD48cD5hbmJlaSBkaWUgRWlua2F1ZnNsaXN0
+ZSBhbHMgUERGLjwvcD48cD48aW1nIGJvcmRlcj0iMCIgd2lkdGg9IjExNTQi
+IGhlaWdodD0iOTY0IiBzcmM9ImNpZDppbWFnZTAwMS5wbmdAMDFENzFCMUQu
+RUVBMEI0RjAiPjwvcD48cD48aW1nIGJvcmRlcj0iMCIgd2lkdGg9IjExNTQi
+IGhlaWdodD0iOTQwIiBzcmM9ImNpZDppbWFnZTAwMi5wbmdAMDFENzFCMUQu
+RUVBMEI0RjAiPjwvcD48cD48aW1nIGJvcmRlcj0iMCIgd2lkdGg9IjExNTQi
+IGhlaWdodD0iOTM4IiBzcmM9ImNpZDppbWFnZTAwMy5wbmdAMDFENzFCMUQu
+RUVBMEI0RjAiPjwvcD48cD5CZXN0ZSBHcnVlc3NlPC9wPjwvZGl2PjwvYm9k
+eT48L2h0bWw+
+--_004_BOUNDARY_
+Content-Type: image/png; name="image001.png"
+Content-Transfer-Encoding: base64
+Content-ID: <image001.png@01D71B1D.EEA0B4F0>
+Content-Description: image001.png
+Content-Disposition: attachment; filename="image001.png"; size=38
+
+iVBORw0KGgoAAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRoB
+--_004_BOUNDARY_
+Content-Type: image/png; name="image002.png"
+Content-Transfer-Encoding: base64
+Content-ID: <image002.png@01D71B1D.EEA0B4F0>
+Content-Description: image002.png
+Content-Disposition: attachment; filename="image002.png"; size=38
+
+iVBORw0KGgoAAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhAgI=
+--_004_BOUNDARY_
+Content-Type: image/png; name="image003.png"
+Content-Transfer-Encoding: base64
+Content-ID: <image003.png@01D71B1D.EEA0B4F0>
+Content-Description: image003.png
+Content-Disposition: attachment; filename="image003.png"; size=38
+
+iVBORw0KGgoAAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMk
+JSYnKAMDAw==
+--_004_BOUNDARY_
+Content-Type: application/pdf; name="=?UTF-8?B?RWlua2F1ZnNsaXN0ZSBCQVVIQVVTIFJvbGxsYWRlbmTDpG1tdW5nLnBkZg==?="
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="=?UTF-8?B?RWlua2F1ZnNsaXN0ZSBCQVVIQVVTIFJvbGxsYWRlbmTDpG1tdW5nLnBkZg==?="
+
+JVBERi0xLjcKMSAwIG9iago8PD4+CmVuZG9iagolJUVPRgo=
+--_004_BOUNDARY_
+Content-Type: image/jpeg; name="=?UTF-8?B?b2ZmZW5lciBLYXN0ZW4uanBn?="
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="=?UTF-8?B?b2ZmZW5lciBLYXN0ZW4uanBn?="
+
+/9j/4IlQTkcNChoKAAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwd
+--_004_BOUNDARY_--

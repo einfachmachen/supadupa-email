@@ -155,7 +155,11 @@ Mittelpunkt** — alles andere ist zugeklappt, bis es gebraucht wird.
    Weiterleiten neue Content-IDs, behält aber den Namensteil
    (`image001.png@…`) — darüber findet sich dasselbe Bild wieder. Gibt es
    mehrere Fassungen, gewinnt die größere Datei. Die Klappe wird gold, sobald
-   etwas endgültig fehlt.
+   etwas endgültig fehlt. Ein Bild, das **zugleich im Text eingebunden und als
+   Anhang deklariert** ist (Outlook-Muster), erscheint in der Anhangsliste
+   markiert und **abgewählt** — es steckt ja schon im Rumpf. Schaltet man
+   *Formatierung behalten* ab, wird es automatisch wieder angehakt, damit es
+   nicht verlorengeht.
 5. **Anhänge** (zugeklappt): über ihren **Inhalt** zusammengefasst — SHA-256
    über die dekodierten Dateibytes. 10 Kopien mit je 5 Anhängen ergeben genau
    **5 Einträge**, jeder mit allen vorkommenden Namensvarianten als Chips und
@@ -344,7 +348,7 @@ sauberer Empfänger in der anderen), statt „löschen“ lieber
 npm test      # node:test, keine Abhängigkeiten
 ```
 
-126 Tests decken Header-Kodierung, das Byte-genaue Umschreiben der
+130 Tests decken Header-Kodierung, das Byte-genaue Umschreiben der
 Roh-Nachricht, die Empfängerprüfung samt Vorschlägen, die
 Dateinamen-Plausibilität, den Textvergleich sowie Gruppierung und
 Kopie-Bewertung der Duplikatsuche, die MIME-Teil-Umbenennung und den
@@ -355,7 +359,10 @@ Anhängen ab (inklusive eines Laufs über 10.000 Kopfdatensätze und des Falls
 Word-Mail (Testdaten anonymisiert) sowie das Ergänzen fehlender
 Inline-Bilder, den Neubau mit `multipart/related` und die Anhang-Erkennung in
 einer echten Outlook-Nachricht (Anhänge mit Content-ID, gefaltete
-RFC-2047-Dateinamen, verwaistes cid-Bild).
+RFC-2047-Dateinamen, verwaistes cid-Bild). Vier davon sind
+**Integrationstests**: Sie fahren den echten Weg über eine Attrappe der
+Thunderbird-API (`test/helpers/fakeMessenger.js`) — genau dort steckten die
+Fehler, die den Einzelteil-Tests entgangen sind.
 
 ## Aufbau
 

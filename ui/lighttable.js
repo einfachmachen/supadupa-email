@@ -669,6 +669,17 @@ export async function openLightTable(ids, opts = {}) {
         `in ${copies_.length} von ${copies.length} Fassungen` +
         (att.hash ? ` · ${shortHash(att.hash)}` : "");
       body.append(meta);
+      if (att.inlineToo) {
+        const mark = el(
+          "div",
+          "meta",
+          state.keepHtml
+            ? "im Nachrichtentext eingebunden — steckt schon im Rumpf, deshalb hier ab"
+            : "im Nachrichtentext eingebunden — ohne Formatierung nur als Anhang erhaltbar"
+        );
+        mark.style.color = "var(--gold)";
+        body.append(mark);
+      }
 
       const nameIn = document.createElement("input");
       nameIn.type = "text";
@@ -819,6 +830,13 @@ export async function openLightTable(ids, opts = {}) {
       htmlBox.style.minHeight = "0";
       htmlBox.onchange = () => {
         state.keepHtml = htmlBox.checked;
+        // Ohne Formatierung gäbe es die eingebundenen Bilder sonst nirgends
+        // mehr — dann müssen sie als Anhang mit.
+        for (const st of sel.attachments) {
+          const meta = cands.attachments.find((a) => a.key === st.key);
+          if (meta?.inlineToo) st.include = !state.keepHtml;
+        }
+        render();
       };
       l.append(htmlBox, document.createTextNode(" Formatierung & eingebettete Bilder behalten"));
       bar.append(l);
@@ -832,6 +850,10 @@ export async function openLightTable(ids, opts = {}) {
         const attachments = [];
         for (const st of sel.attachments) {
           if (!st.include) continue;
+          // Doppelte Nutzlast vermeiden: Ein Bild, das im HTML eingebunden
+          // ist, steckt bereits im multipart/related des Rumpfes.
+          const meta = cands.attachments.find((a) => a.key === st.key);
+          if (state.keepHtml && meta?.inlineToo) continue;
           const att = cands.attachments.find((a) => a.key === st.key);
           const source = att.sources[0];
           const part = takePart(byId.get(source.copyId), source.index);
