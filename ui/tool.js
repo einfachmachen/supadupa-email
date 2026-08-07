@@ -20,6 +20,7 @@ import {
   MODES,
 } from "../lib/dedupe.js";
 import { buildMergePlan } from "../lib/merge.js";
+import { openLightTable } from "./lighttable.js";
 import { checkAttachments, suggestName } from "../lib/attachments.js";
 import { compareTexts, classify, compareFacts, htmlToText } from "../lib/similarity.js";
 import {
@@ -374,9 +375,11 @@ function renderGroup(g) {
   const verify = el("button", "ghost", g.verified ? "Inhalt geprüft ✓" : "Inhalte prüfen");
   verify.disabled = Boolean(g.verified);
   verify.onclick = () => verifyOneGroup(g);
-  const merge = el("button", "primary", "Zu einer vollständigen Mail zusammenführen");
+  const light = el("button", "primary", "Leuchttisch öffnen");
+  light.onclick = () => openTableFor(g.messages.map((m) => m.id));
+  const merge = el("button", "ghost", "automatisch zusammenführen");
   merge.onclick = () => mergeOneGroup(g);
-  bar.append(verify, merge);
+  bar.append(verify, light, merge);
   const del = el("button", "danger", `${g.messages.length - 1} Duplikate löschen`);
   del.onclick = async () => {
     const ids = removableIds(g);
@@ -421,6 +424,35 @@ async function verifyOneGroup(g) {
       : "Inhalte geprüft: alle Kopien sind inhaltlich identisch."
   );
   setStatus(`${state.groups.length} Gruppen`);
+}
+
+/** Öffnet den Leuchttisch für beliebige Nachrichten-IDs. */
+async function openTableFor(ids) {
+  if (state.busy || !ids.length) return;
+  state.busy = true;
+  try {
+    await openLightTable(ids, {
+      profiles: state.profiles,
+      onStatus: setStatus,
+      onToast: toast,
+      onDone: async ({ newId, removed }) => {
+        if (removed?.length) {
+          const gone = new Set(removed);
+          state.headers = state.headers.filter((h) => !gone.has(h.id));
+          state.groups = state.groups
+            .map((g) => ({ ...g, messages: g.messages.filter((m) => !gone.has(m.id)) }))
+            .filter((g) => g.messages.length > 1);
+          renderGroups();
+        }
+        await loadIds([newId]);
+      },
+    });
+  } catch (e) {
+    console.error(e);
+    toast(`Leuchttisch konnte nicht geöffnet werden: ${e.message}`, true);
+  } finally {
+    state.busy = false;
+  }
 }
 
 /** Baut aus einer Gruppe eine vollständige Nachricht und ersetzt die Kopien. */
@@ -896,6 +928,13 @@ function renderCompare() {
 
 $("#btnSelection").onclick = loadSelection;
 $("#btnReload").onclick = () => analyzeAll();
+$("#btnLightTable").onclick = () => {
+  if (state.msgs.length < 2) {
+    toast("Dafür müssen mindestens zwei Nachrichten geladen sein.", true);
+    return;
+  }
+  openTableFor(state.msgs.map((m) => m.id));
+};
 $("#btnAddProfile").onclick = () => {
   readProfileInputs();
   state.profiles.push({

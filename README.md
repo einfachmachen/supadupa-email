@@ -108,7 +108,35 @@ welcher Anhang wird wie umbenannt) zum Bestätigen oder Überspringen.
 > eine Kopie zu viel. Der Plan nennt in dem Fall die Grundlage mit ihrer
 > Anhangszahl, sodass du es siehst.
 
-### 5. Inhalte vergleichen
+### 5. Leuchttisch: Bestandteile auswählen, neue Mail bauen
+
+Die Gegenüberstellung. **Leuchttisch öffnen** legt alle Kopien einer Gruppe
+übereinander:
+
+- **Mitte** — der Text aller Fassungen überlagert, zeilenweise eingefärbt:
+  weiß = steht in allen Fassungen, gold = in mehreren, grau = nur in einer.
+  Darunter die Fassung zur Übernahme und ein Textfeld zum Nachbearbeiten.
+- **Links** — Betreff, Absender, Empfänger, Cc, Datum: jede vorhandene
+  Variante als anklickbare Karte, mit Herkunft („aus Kopie 2"), den Befunden
+  („Kein Anzeigename") und der Profil-Korrektur als Chip. Empfänger und Cc
+  zusätzlich frei editierbar.
+- **Rechts** — **alle Anhänge aller Kopien** in einer Liste. Derselbe Anhang
+  wird über Größe + MIME-Typ wiedererkannt, seine Namensvarianten hängen als
+  Chips daran. Haken = kommt mit, Textfeld = endgültiger Dateiname.
+- **Unten** — *Neue Nachricht erzeugen*.
+
+Die neue Nachricht wird als **frisches multipart/mixed** gebaut: gewählte
+Kopfzeilen, gesäuberter Text als UTF-8/Quoted-Printable, und jeder gewählte
+Anhang als **byte-genau übernommener MIME-Block** aus seiner Quell-Mail — nur
+die Dateinamen-Kopfzeile wird neu geschrieben, die kodierte Nutzlast nie.
+Anders als beim automatischen Zusammenführen dürfen die Anhänge dabei aus
+**verschiedenen** Kopien stammen. Ein `X-SupaDupa-Merged-From`-Header hält
+fest, aus welchen Nachrichten sie gebaut wurde.
+
+Standardmäßig bleiben die Ausgangs-Mails **unangetastet** (Haken „Ausgangs-Mails
+behalten") — erst prüfen, dann aufräumen.
+
+### 6. Inhalte vergleichen
 
 Alle geladenen Nachrichten werden paarweise verglichen (Wort- und
 Bigramm-Ähnlichkeit, Zitate und Signaturen fliegen vorher raus, HTML wird zu
@@ -208,6 +236,27 @@ abwägen musst:
    die bei deinen Fragmenten abweichen. Wer nicht dieselbe Prüfsumme hat,
    fliegt aus der Gruppe.
 
+### Steuer- und Sonderzeichen im Text
+
+Kommt häufig vor und ist genau deshalb eingeplant: Gateways streuen
+Zero-Width-Zeichen ein, Konverter setzen geschützte Leerzeichen statt
+normaler, Exporte lassen C0-Steuerzeichen oder Quoted-Printable-Reste (`=20`,
+weiche `=`-Umbrüche) stehen, manche Systeme legen Trennlinien-Rahmen um den
+Text. Zwei Kopien derselben Mail hätten dadurch **verschiedene** Prüfsummen
+und würden nie zueinander finden.
+
+Deshalb läuft jeder Vergleich über `lib/textclean.js`: C0/C1-Steuerzeichen,
+Zero-Width-Zeichen, Bidi-Marken, bedingte Trennstriche, Ersatzzeichen (`�`),
+Quoted-Printable-Reste und Rahmenzeilen fliegen **vor** dem Vergleich raus;
+geschützte Leerzeichen werden zu normalen. Der Leuchttisch meldet oben, in
+welcher Kopie wie viel davon steckte — und der neu gebaute Text ist die
+gesäuberte Fassung.
+
+Bleibt der Text trotzdem unbrauchbar (kaputte Kodierung), greift die zweite
+Stufe: ein **Fakten-Fingerabdruck** aus Beträgen, IBAN, Belegnummern und Daten
+plus Größe/Typ der Anhänge. Eine Kopie, deren Text auseinanderläuft, findet
+darüber zu ihren Geschwistern zurück.
+
 Erst danach ist „das ist wirklich dieselbe Nachricht“ eine belastbare Aussage
 — und zwar unabhängig davon, ob die Kopie einen Empfängernamen hatte oder wie
 ihr Anhang hieß. Eine geprüfte Gruppe trägt die Marke *Inhalt identisch
@@ -231,11 +280,13 @@ sauberer Empfänger in der anderen), statt „löschen“ lieber
 npm test      # node:test, keine Abhängigkeiten
 ```
 
-71 Tests decken Header-Kodierung, das Byte-genaue Umschreiben der
+89 Tests decken Header-Kodierung, das Byte-genaue Umschreiben der
 Roh-Nachricht, die Empfängerprüfung samt Vorschlägen, die
 Dateinamen-Plausibilität, den Textvergleich sowie Gruppierung und
 Kopie-Bewertung der Duplikatsuche, die MIME-Teil-Umbenennung und den
-Zusammenführungs-Plan ab (inklusive eines Laufs über 10.000 Kopfdatensätze).
+Zusammenführungs-Plan, die Zeichen-Säuberung, das Kandidaten-Modell und den
+Neubau vollständiger Nachrichten ab (inklusive eines Laufs über 10.000
+Kopfdatensätze).
 
 ## Aufbau
 
@@ -248,10 +299,14 @@ Zusammenführungs-Plan ab (inklusive eines Laufs über 10.000 Kopfdatensätze).
 | `lib/recipients.js` | Profile, Empfängerprüfung, Korrekturvorschläge |
 | `lib/attachments.js` | Anhang- und Dateinamen-Plausibilität |
 | `lib/dedupe.js` | Duplikat-Gruppen, Inhalts-Prüfsumme, Bewertung „welche Kopie bleibt“ |
-| `lib/mimeparts.js` | MIME-Teile begehen, Dateinamen in Teil-Kopfzeilen setzen |
+| `lib/mimeparts.js` | MIME-Teile begehen, herausschneiden, Dateinamen setzen |
+| `lib/textclean.js` | Steuer-/Sonderzeichen erkennen und entfernen |
+| `lib/candidates.js` | Leuchttisch-Modell: Varianten je Bestandteil, Vorauswahl |
+| `lib/assemble.js` | neue RFC-5322/MIME-Nachricht aus gewählten Teilen bauen |
 | `lib/merge.js` | Zusammenführungs-Plan: Grundlage, beste Empfänger, Umbenennungen |
 | `lib/similarity.js` | Textnormalisierung, Ähnlichkeit, Faktenabgleich |
 | `lib/messageStore.js` | Thunderbird-APIs (lesen, importieren, löschen) |
+| `ui/lighttable.js` | Leuchttisch-Oberfläche |
 | `ui/tool.*` | Oberfläche (Design-Tokens nach SupaDupa-Design-Guide) |
 
 Die `lib/`-Module sind frei von Browser- und Thunderbird-APIs — deshalb sind
