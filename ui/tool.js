@@ -6,7 +6,13 @@ import {
   formatAddress,
   decodeHeaderValue,
 } from "../lib/mime.js";
-import { checkRecipientList, deriveProfiles, profileNames } from "../lib/recipients.js";
+import {
+  checkRecipientList,
+  deriveProfiles,
+  profileNames,
+  applySuggestions,
+} from "../lib/recipients.js";
+import { groupDuplicates, summarize, removableIds, MODES } from "../lib/dedupe.js";
 import { checkAttachments, suggestName } from "../lib/attachments.js";
 import { compareTexts, classify, compareFacts, htmlToText } from "../lib/similarity.js";
 import {
@@ -14,16 +20,21 @@ import {
   rewriteHeaders,
   rawHeader,
   listFolders,
-  listMessages,
+  listAllMessages,
+  deleteMessages,
   contactPairs,
   messengerApi as api,
 } from "../lib/messageStore.js";
 
 const $ = (sel) => document.querySelector(sel);
 const state = {
-  msgs: [], // [{id, header, body, attachments, to, checks}]
+  msgs: [], // geladene Einzelnachrichten (mit Body/Anhängen)
   profiles: [],
   busy: false,
+  folder: null, // aktuell geladener Ordner
+  headers: [], // Kopfdaten des Ordners (ohne Body)
+  groups: [], // Duplikat-Gruppen
+  mode: MODES.normal,
 };
 
 // ---------------------------------------------------------------- Hilfsmittel
@@ -158,6 +169,7 @@ async function loadIds(ids) {
   const out = [];
   for (const id of ids) {
     try {
+      if (ids.length > 5) setStatus(`Lese … ${out.length + 1}/${ids.length}`);
       const msg = await loadMessage(id);
       msg.to = await rawHeader(id, "To").catch(() => "");
       if (!msg.to) msg.to = formatAddressList(msg.header.recipients?.map(parseOne) || []);
@@ -216,11 +228,234 @@ function analyzeAll() {
     msg.text = text;
   }
   render();
+  updateBulkFixButton();
   const bad = state.msgs.filter((m) => !m.recipients.ok || m.recipients.empty).length;
   setStatus(
     `${state.msgs.length} Nachricht(en) geprüft · ` +
-      (bad ? `${bad} mit Empfänger-Problem` : "Empfänger überall stimmig")
+      (bad ? `${bad} mit Empfänger-Problem` : "Empfänger überall stimmig") +
+      (state.headers.length ? ` · Ordner: ${state.headers.length} Nachrichten` : "")
   );
+}
+
+// --------------------------------------------------------------- Duplikate
+
+async function loadFolder(folder) {
+  if (state.busy) return;
+  state.busy = true;
+  state.folder = folder;
+  state.msgs = [];
+  render();
+  try {
+    setStatus("Ordner wird gelesen …");
+    state.headers = await listAllMessages(folder, {
+      onProgress: (n) => setStatus(`Ordner wird gelesen … ${n} Nachrichten`),
+    });
+    regroup();
+  } catch (e) {
+    console.error(e);
+    toast(`Ordner konnte nicht gelesen werden: ${e.message}`, true);
+    setStatus("Fehler beim Lesen des Ordners.");
+  } finally {
+    state.busy = false;
+  }
+}
+
+function regroup() {
+  state.groups = groupDuplicates(state.headers, {
+    mode: state.mode,
+    profiles: state.profiles,
+  });
+  const s = summarize(state.groups);
+  setStatus(
+    `${state.headers.length} Nachrichten · ${s.groups} Duplikat-Gruppen · ` +
+      `${s.removable} entfernbare Kopien`
+  );
+  renderGroups();
+  render();
+}
+
+function renderGroups() {
+  const box = $("#dupes");
+  const body = $("#dupesBody");
+  body.textContent = "";
+  if (!state.headers.length) {
+    box.classList.add("hidden");
+    return;
+  }
+  box.classList.remove("hidden");
+
+  const s = summarize(state.groups);
+  $("#dupeSummary").textContent = s.groups
+    ? `${s.groups} Gruppen, ${s.removable} Kopien könnten weg. Pro Gruppe ist die beste Kopie vorausgewählt — die mit der vollständigsten Empfänger-Angabe.`
+    : "Keine Duplikate nach dem aktuellen Maßstab gefunden.";
+  $("#btnDeleteAll").disabled = !s.removable;
+  $("#btnDeleteAll").textContent = `Alle ${s.removable} Duplikate in den Papierkorb`;
+  $("#btnKeepers").disabled = !s.groups;
+
+  const shown = state.groups.slice(0, 200);
+  for (const g of shown) body.append(renderGroup(g));
+  if (state.groups.length > shown.length) {
+    body.append(
+      el(
+        "div",
+        "muted",
+        `… ${state.groups.length - shown.length} weitere Gruppen (werden beim Löschen mitbehandelt).`
+      )
+    );
+  }
+}
+
+function renderGroup(g) {
+  const card = el("div", "card");
+  const first = g.messages[0];
+  const head = el("div", "subject");
+  head.append(el("div", null, decodeHeaderValue(first.subject) || "(kein Betreff)"));
+  head.append(
+    el(
+      "div",
+      "meta",
+      `${decodeHeaderValue(first.author || "")} · ${new Date(first.date).toLocaleString("de-DE")}`
+    )
+  );
+  card.append(head);
+
+  const badges = el("div", "badges");
+  badges.append(el("span", "badge warn", `${g.messages.length} Kopien`));
+  for (const r of g.reasons) badges.append(el("span", "badge", r));
+  card.append(badges);
+
+  const sec = el("section", "block");
+  for (const m of g.messages) {
+    const row = el("div", "att");
+    const radio = document.createElement("input");
+    radio.type = "radio";
+    radio.name = `keep-${g.key}`;
+    radio.checked = m.id === g.keeperId;
+    radio.style.minHeight = "0";
+    radio.onchange = () => {
+      g.keeperId = m.id;
+      renderGroups();
+    };
+    const info = el("div", "name");
+    const to = (m.recipients || []).join(", ");
+    info.append(el("div", null, to ? decodeHeaderValue(to) : "— keine Empfänger-Angabe —"));
+    info.append(
+      el(
+        "div",
+        "meta",
+        `${new Date(m.date).toLocaleString("de-DE")} · ${m.folder?.path || ""} · Punkte ${
+          g.scores[m.id]
+        }${m.id === g.keeperId ? " · bleibt" : ""}`
+      )
+    );
+    const open = el("button", "chip", "öffnen & prüfen");
+    open.onclick = () => loadIds([m.id]);
+    row.append(radio, info, el("div", "size", fmtSize(m.size)), open);
+    sec.append(row);
+  }
+
+  const bar = el("div", "bar");
+  const del = el("button", "danger", `${g.messages.length - 1} Duplikate löschen`);
+  del.onclick = async () => {
+    const ids = removableIds(g);
+    if (!ids.length) return;
+    await runDelete(ids, `${ids.length} Kopie(n)`);
+    state.headers = state.headers.filter((h) => !ids.includes(h.id));
+    regroup();
+  };
+  bar.append(del);
+  sec.append(bar);
+  card.append(sec);
+  return card;
+}
+
+async function runDelete(ids, label) {
+  const permanent = $("#permDelete").checked;
+  const where = permanent ? "ENDGÜLTIG gelöscht" : "in den Papierkorb verschoben";
+  if (!window.confirm(`${label} werden ${where}. Fortfahren?`)) return false;
+  state.busy = true;
+  try {
+    await deleteMessages(ids, {
+      permanent,
+      onProgress: (done, total) => setStatus(`Lösche … ${done}/${total}`),
+    });
+    toast(`${ids.length} Nachricht(en) ${where}.`);
+    return true;
+  } catch (e) {
+    console.error(e);
+    toast(`Löschen fehlgeschlagen: ${e.message}`, true);
+    return false;
+  } finally {
+    state.busy = false;
+  }
+}
+
+async function deleteAllDupes() {
+  const ids = state.groups.flatMap(removableIds);
+  if (!ids.length) return;
+  const ok = await runDelete(ids, `${ids.length} Duplikate aus ${state.groups.length} Gruppen`);
+  if (!ok) return;
+  const gone = new Set(ids);
+  state.headers = state.headers.filter((h) => !gone.has(h.id));
+  regroup();
+}
+
+/** Lädt die Kopien, die bleiben sollen, zur Empfänger-Korrektur in die Liste. */
+async function loadKeepers() {
+  const ids = state.groups.map((g) => g.keeperId).slice(0, 50);
+  if (!ids.length) return;
+  await loadIds(ids);
+  updateBulkFixButton();
+}
+
+function pendingFixes() {
+  return state.msgs
+    .map((m) => ({ msg: m, value: applySuggestions(m.to, state.profiles) }))
+    .filter((x) => x.value && x.value !== (x.msg.to || "").trim());
+}
+
+function updateBulkFixButton() {
+  const n = pendingFixes().length;
+  const btn = $("#btnFixAll");
+  btn.disabled = !n;
+  btn.textContent = n
+    ? `Empfänger in ${n} Nachricht(en) korrigieren`
+    : "Keine automatischen Korrekturen offen";
+}
+
+async function fixAllRecipients() {
+  const fixes = pendingFixes();
+  if (!fixes.length) return;
+  if (
+    !window.confirm(
+      `${fixes.length} Nachricht(en) bekommen eine neue Empfänger-Zeile.\n\n` +
+        "Jede wird dabei neu abgelegt (Original in den Papierkorb). Fortfahren?"
+    )
+  ) {
+    return;
+  }
+  state.busy = true;
+  let done = 0;
+  const failed = [];
+  for (const { msg, value } of fixes) {
+    try {
+      setStatus(`Korrigiere … ${done + 1}/${fixes.length}`);
+      await rewriteHeaders(msg.id, { To: value }, { permanent: false });
+      done++;
+    } catch (e) {
+      console.error(e);
+      failed.push(`${decodeHeaderValue(msg.header.subject)}: ${e.message}`);
+    }
+  }
+  state.busy = false;
+  toast(
+    failed.length
+      ? `${done} korrigiert, ${failed.length} fehlgeschlagen (Details in der Konsole).`
+      : `${done} Nachricht(en) korrigiert.`,
+    failed.length > 0
+  );
+  if (failed.length) console.error("Fehlgeschlagen:", failed);
+  if (state.folder) await loadFolder(state.folder);
 }
 
 // ------------------------------------------------------------------ Rendern
@@ -444,8 +679,23 @@ function renderCompare() {
     return;
   }
   box.classList.remove("hidden");
+  // Paarvergleich wächst quadratisch — bei vielen Nachrichten nur die ersten
+  // Paare zeigen, sonst steht die Oberfläche.
+  const MAX_PAIRS = 120;
+  let pairs = 0;
+  if ((state.msgs.length * (state.msgs.length - 1)) / 2 > MAX_PAIRS) {
+    body.append(
+      el(
+        "div",
+        "muted",
+        `Viele Nachrichten geladen — es werden die ersten ${MAX_PAIRS} Paare gezeigt. ` +
+          "Für den Massenlauf ist die Duplikat-Ansicht oben gedacht."
+      )
+    );
+  }
   for (let i = 0; i < state.msgs.length; i++) {
     for (let j = i + 1; j < state.msgs.length; j++) {
+      if (++pairs > MAX_PAIRS) return;
       const a = state.msgs[i];
       const b = state.msgs[j];
       const cmp = compareTexts(a.text, b.text);
@@ -521,14 +771,15 @@ $("#btnFromBook").onclick = profilesFromAddressBook;
 $("#folderSel").onchange = async (e) => {
   const opt = e.target.selectedOptions[0];
   if (!opt?._folder) return;
-  try {
-    setStatus("Ordner wird gelesen …");
-    const msgs = await listMessages(opt._folder);
-    await loadIds(msgs.map((m) => m.id));
-  } catch (err) {
-    toast(`Ordner konnte nicht gelesen werden: ${err.message}`, true);
-  }
+  await loadFolder(opt._folder);
 };
+$("#modeSel").onchange = (e) => {
+  state.mode = e.target.value;
+  if (state.headers.length) regroup();
+};
+$("#btnDeleteAll").onclick = deleteAllDupes;
+$("#btnKeepers").onclick = loadKeepers;
+$("#btnFixAll").onclick = fixAllRecipients;
 
 api.runtime.onMessage.addListener((m) => {
   if (m?.type === "refresh") loadSelection();

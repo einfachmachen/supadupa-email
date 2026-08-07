@@ -23,10 +23,32 @@
 
       <div class="bar">
         <button id="btnSelection" class="primary">Auswahl laden</button>
-        <select id="folderSel" title="Ganzen Ordner laden">
+        <select id="folderSel" title="Ganzen Ordner laden und auf Duplikate prüfen">
           <option value="">Ordner wählen …</option>
         </select>
+        <select id="modeSel" title="Wie streng gilt eine Mail als Duplikat?">
+          <option value="strict">streng: gleiche Message-ID</option>
+          <option value="normal" selected>normal: ID oder Absender+Betreff+Minute</option>
+          <option value="lose">locker: Absender+Betreff+Tag</option>
+        </select>
         <button id="btnReload" class="ghost">Neu prüfen</button>
+      </div>
+
+      <div id="dupes" class="card hidden">
+        <section class="block" style="border-top: 0; margin-top: 0; padding-top: 0">
+          <h3>Duplikate</h3>
+          <div id="dupeSummary" class="muted"></div>
+          <div class="bar" style="margin-top: 10px">
+            <button id="btnDeleteAll" class="danger" disabled>Alle Duplikate in den Papierkorb</button>
+            <button id="btnKeepers" class="ghost" disabled>Behaltene Kopien prüfen</button>
+            <button id="btnFixAll" class="primary" disabled>Keine automatischen Korrekturen offen</button>
+            <label class="muted" style="display: flex; align-items: center; gap: 6px">
+              <input type="checkbox" id="permDelete" style="min-height: 0" />
+              endgültig löschen statt Papierkorb
+            </label>
+          </div>
+          <div id="dupesBody" style="margin-top: 10px"></div>
+        </section>
       </div>
 
       <details id="profileBox" class="card">

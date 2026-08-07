@@ -67,7 +67,14 @@ Pro Anhang: Name, Typ, Größe — plus Plausibilitätsprüfung des Dateinamens:
 Zu jedem unplausiblen Namen gibt es einen **Vorschlag** im Muster
 `2024-04-03_Rechnung-2024-0815.pdf` (Datum · Betreff · Belegnummer).
 
-### 3. Inhalte vergleichen
+### 3. Duplikate finden und aufräumen
+
+Ganze Ordner werden nur über die Kopfdaten gruppiert (kein Body-Abruf) und
+nach Duplikat-Gruppen sortiert. Pro Gruppe wird die beste Kopie
+vorausgewählt, der Rest lässt sich in einem Rutsch entfernen. Details unter
+*Benutzung → Ganzen Ordner deduplizieren*.
+
+### 4. Inhalte vergleichen
 
 Alle geladenen Nachrichten werden paarweise verglichen (Wort- und
 Bigramm-Ähnlichkeit, Zitate und Signaturen fliegen vorher raus, HTML wird zu
@@ -88,10 +95,17 @@ weicht ab“.
 npm run build      # → dist/supadupa-mailcheck-1.0.0.xpi
 ```
 
-In Thunderbird: *Extras → Add-ons → Zahnrad → Add-on aus Datei installieren*.
-(Das Paket ist nicht bei addons.thunderbird.net signiert; zum dauerhaften
-Installieren entweder über *Debug-Add-ons → Temporär laden* testen oder eine
-Thunderbird-Version nutzen, die unsignierte Add-ons zulässt.)
+Das Paket ist nicht signiert (es liegt nicht auf addons.thunderbird.net).
+Damit Thunderbird es dauerhaft installiert:
+
+1. *Einstellungen → Allgemein → ganz unten „Konfiguration bearbeiten“*,
+2. `xpinstall.signatures.required` auf **false** setzen,
+3. *Extras → Add-ons und Themes → Zahnrad → Add-on aus Datei installieren* →
+   die `.xpi` auswählen.
+
+Zum reinen Ausprobieren geht es auch ohne diesen Schalter über
+*Extras → Entwicklerwerkzeuge → Debug-Add-ons → Temporäres Add-on laden*
+(`manifest.json` auswählen) — das hält aber nur bis zum nächsten Neustart.
 
 **Zum Entwickeln**
 
@@ -102,11 +116,53 @@ Voraussetzung: **Thunderbird 128+** (wegen `messages.import`).
 
 ## Benutzung
 
+### Einzelne Mails prüfen
+
 1. Mails im Hauptfenster markieren → Symbolleisten-Knopf **E-Mail-Prüfung**
    (oder in der Nachrichtenansicht der gleiche Knopf für die offene Mail).
 2. Unter *Meine Namen & Adressen* mindestens ein Profil anlegen und speichern.
 3. Pro Nachricht: Befunde lesen, Vorschlag antippen oder Felder von Hand
    ändern, **Empfänger speichern**.
+
+### Ganzen Ordner deduplizieren (Massenlauf)
+
+Oben **Ordner wählen** — der Ordner wird vollständig eingelesen (nur
+Kopfdaten, seitenweise; das verkraftet auch zehntausende Nachrichten) und in
+**Duplikat-Gruppen** einsortiert. Der Maßstab daneben ist einstellbar:
+
+| Modus | Gruppiert nach |
+|---|---|
+| **streng** | gleiche `Message-ID` — echte Kopien derselben Nachricht |
+| **normal** (Vorgabe) | `Message-ID`, sonst Absender + Betreff + Minute |
+| **locker** | Absender + Betreff + Tag — findet auch neu zugestellte Kopien |
+
+In jeder Gruppe ist die **beste Kopie vorausgewählt**: Es gewinnt die mit der
+vollständigsten Empfänger-Angabe (Name *und* Adresse, passend zum Profil).
+Ein *falscher* Name zählt dabei schlechter als ein fehlender — er sieht
+richtig aus und würde beim Aufräumen unbemerkt durchrutschen. Danach zählen
+Markierung, Tags und Größe. Die Vorauswahl lässt sich pro Gruppe per Radio-
+Knopf ändern.
+
+Drei Massen-Aktionen:
+
+- **Alle Duplikate in den Papierkorb** — löscht in jeder Gruppe alles außer
+  der behaltenen Kopie (in Blöcken, mit Rückfrage; auf Wunsch endgültig statt
+  Papierkorb).
+- **Behaltene Kopien prüfen** — lädt die Behalten-Kopien (bis 50 auf einmal)
+  mit Text und Anhängen in die Einzelansicht.
+- **Empfänger in N Nachrichten korrigieren** — wendet auf alle geladenen
+  Nachrichten die Profil-Vorschläge an (nur dort, wo es überhaupt etwas zu
+  ändern gibt), mit Rückfrage und Fortschrittsanzeige.
+
+**Empfohlene Reihenfolge bei vielen Duplikaten:** erst Duplikate löschen,
+dann die verbliebenen Kopien korrigieren — sonst korrigierst du Mails, die
+danach ohnehin wegfallen.
+
+> Vorsicht beim Modus **locker**: Er gruppiert allein über Absender, Betreff
+> und Tag. Zwei echte, verschiedene Mails desselben Absenders mit gleichem
+> Betreff am selben Tag (etwa zwei Belege einer Serie) landen dann in einer
+> Gruppe. Vor dem Löschen die Gruppen durchsehen — und zunächst in den
+> Papierkorb löschen, nicht endgültig.
 
 ## Tests
 
@@ -114,9 +170,11 @@ Voraussetzung: **Thunderbird 128+** (wegen `messages.import`).
 npm test      # node:test, keine Abhängigkeiten
 ```
 
-43 Tests decken Header-Kodierung, das Byte-genaue Umschreiben der
+53 Tests decken Header-Kodierung, das Byte-genaue Umschreiben der
 Roh-Nachricht, die Empfängerprüfung samt Vorschlägen, die
-Dateinamen-Plausibilität und den Textvergleich ab.
+Dateinamen-Plausibilität, den Textvergleich sowie Gruppierung und
+Kopie-Bewertung der Duplikatsuche ab (inklusive eines Laufs über 10.000
+Kopfdatensätze).
 
 ## Aufbau
 
@@ -128,6 +186,7 @@ Dateinamen-Plausibilität und den Textvergleich ab.
 | `lib/rawmail.js` | Header im Byte-Strom lesen/ersetzen/falten |
 | `lib/recipients.js` | Profile, Empfängerprüfung, Korrekturvorschläge |
 | `lib/attachments.js` | Anhang- und Dateinamen-Plausibilität |
+| `lib/dedupe.js` | Duplikat-Gruppen, Bewertung „welche Kopie bleibt“ |
 | `lib/similarity.js` | Textnormalisierung, Ähnlichkeit, Faktenabgleich |
 | `lib/messageStore.js` | Thunderbird-APIs (lesen, importieren, löschen) |
 | `ui/tool.*` | Oberfläche (Design-Tokens nach SupaDupa-Design-Guide) |
@@ -135,5 +194,7 @@ Dateinamen-Plausibilität und den Textvergleich ab.
 Die `lib/`-Module sind frei von Browser- und Thunderbird-APIs — deshalb sind
 sie einzeln testbar und ließen sich unverändert in eine andere Erweiterung
 übernehmen (etwa als Ergänzung zu
-[removedupes](https://github.com/eyalroz/removedupes), das Duplikate findet,
-aber weder Empfänger bearbeiten noch Anhänge/Inhalte bewerten kann).
+[removedupes](https://github.com/eyalroz/removedupes)). Beide Erweiterungen
+lassen sich parallel betreiben: removedupes findet Duplikate, diese hier
+entscheidet zusätzlich, **welche** Kopie die bessere ist, und repariert die
+Empfänger-Zeile.
