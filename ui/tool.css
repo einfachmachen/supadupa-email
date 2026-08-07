@@ -724,3 +724,19 @@ details > summary {
   border-radius: 12px;
   background: #fff;
 }
+
+.lt-thumb {
+  width: 54px;
+  height: 54px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid var(--bd);
+  background: var(--surf3);
+  flex: none;
+}
+.lt-thumb.leer {
+  display: grid;
+  place-items: center;
+  color: var(--neg);
+  border-style: dashed;
+}

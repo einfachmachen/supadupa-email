@@ -13,13 +13,21 @@ import {
   loadForLightTable,
   takePart,
   takePartData,
-  inlineImages,
+  inlineImageList,
   importAssembled,
   folderOf,
   deleteMessages,
 } from "../lib/messageStore.js";
 import { previewKind, shortHash } from "../lib/attachcontent.js";
-import { buildReaderDocument, looksLikeHtml } from "../lib/htmlmail.js";
+import { buildReaderDocument, looksLikeHtml, listCidRefs } from "../lib/htmlmail.js";
+import {
+  buildImagePool,
+  auditInlineImages,
+  summarizeInline,
+  inlineSetForRebuild,
+  dataUrlToBytes,
+} from "../lib/inlineparts.js";
+import { checkAttachments } from "../lib/attachments.js";
 
 const el = (tag, cls, text) => {
   const n = document.createElement(tag);
@@ -71,6 +79,17 @@ export async function openLightTable(ids, opts = {}) {
   const cands = collectCandidates(copies, { profiles });
   const sel = pickDefaults(cands, { profiles, ctx: { date: copies[0]?.date } });
 
+  // Bilder-Vorrat über ALLE Kopien: Fehlt ein cid:-Bild in der angezeigten
+  // Fassung, steckt es oft noch in einer Geschwister-Kopie.
+  for (const c of copies) {
+    try {
+      c.inline = inlineImageList(c);
+    } catch (e) {
+      console.warn("Inline-Bilder nicht lesbar", c.id, e);
+      c.inline = [];
+    }
+  }
+  const pool = buildImagePool(copies);
   const anyHtml = copies.some((c) => c.isHtml || looksLikeHtml(c.bodyText));
   const state = {
     // "formatiert" nur, wenn es überhaupt HTML gibt — sonst wäre der erste
@@ -78,6 +97,7 @@ export async function openLightTable(ids, opts = {}) {
     mode: anyHtml ? "formatiert" : "lesen", // formatiert | lesen | vergleich | original
     showHistory: false,
     readerUrl: null,
+    keepHtml: true, // HTML samt eingebetteter Bilder erhalten (wenn vorhanden)
     activeCopyId: null, // null = beste Fassung aus allen Kopien
     focusedAttachment: -1,
     preview: null, // Schließfunktion der offenen Vorschau
@@ -186,6 +206,27 @@ export async function openLightTable(ids, opts = {}) {
     x.onclick = close;
     head.append(title, help, x);
     overlay.append(head, helpBox);
+
+    // Im Text angekündigt, aber nirgends vorhanden? Das ist die Frage, die
+    // beim Aufräumen alter Mails am meisten Unruhe stiftet — also nach oben.
+    const promised = checkAttachments(
+      cands.attachments.map((a) => ({
+        name: sel.attachments.find((x) => x.key === a.key)?.filename || a.names[0] || "",
+        contentType: a.contentType,
+        size: a.size,
+      })),
+      { subject: sel.subject, body: sel.bodyText }
+    );
+    const promiseWarn = promised.findings.find((f) => f.code === "announced-missing");
+    if (promiseWarn) {
+      const w = el("div", "lt-help");
+      w.style.borderColor = "var(--gold)";
+      w.style.color = "var(--gold)";
+      w.textContent =
+        promiseWarn.text +
+        " Prüfe die Fassungen oben — vielleicht trägt eine andere Kopie ihn noch.";
+      overlay.append(w);
+    }
 
     // ---- Fassungen: Datum ganz oben, klickbar
     const dateRow = el("div", "lt-versions");
@@ -352,6 +393,12 @@ export async function openLightTable(ids, opts = {}) {
         needsAttention("recipients")
       ),
       foldable(
+        "Eingebettete Bilder",
+        inlineSummary().text,
+        () => [inlinePanel()],
+        inlineSummary().missing > 0
+      ),
+      foldable(
         `Anhänge (${cands.attachments.length})`,
         summaryFor("attachments"),
         () => [attachmentPanel()],
@@ -461,21 +508,19 @@ export async function openLightTable(ids, opts = {}) {
    * (kein `allow-scripts`, eigene CSP im Dokument, externe Bilder blockiert).
    * Inline-Bilder kommen aus der Nachricht selbst.
    */
+  function activeSource() {
+    return state.activeCopyId
+      ? byId.get(state.activeCopyId)
+      : copies.find((c) => c.html || looksLikeHtml(c.bodyText)) || copies[0];
+  }
+
   function readerView() {
     const wrap = el("div", "lt-reader");
-    const src = state.activeCopyId
-      ? byId.get(state.activeCopyId)
-      : copies.find((c) => c.isHtml || looksLikeHtml(c.bodyText)) || copies[0];
+    const src = activeSource();
 
-    let images = new Map();
-    try {
-      images = inlineImages(src);
-    } catch (e) {
-      console.warn("Inline-Bilder nicht lesbar", e);
-    }
-
-    const built = buildReaderDocument(src.bodyText || "", {
-      images,
+    const built = buildReaderDocument(src.html || src.bodyText || "", {
+      images: pool.byCid,
+      stems: pool.byStem,
       showHistory: state.showHistory,
     });
 
@@ -500,11 +545,90 @@ export async function openLightTable(ids, opts = {}) {
       w.style.color = "var(--gold)";
       note.append(w);
     }
+    if (built.filled?.length) {
+      const g = el("span", null, `${built.filled.length} Bild(er) aus anderer Kopie ergänzt`);
+      g.style.color = "var(--pos)";
+      note.append(g);
+    }
     if (built.missingCid) {
-      note.append(el("span", null, `${built.missingCid} eingebettete Bilder fehlen in dieser Kopie`));
+      const w = el(
+        "span",
+        null,
+        `${built.missingCid} eingebettete Bilder fehlen in ALLEN Kopien`
+      );
+      w.style.color = "var(--neg)";
+      note.append(w);
     }
     wrap.append(note);
     return wrap;
+  }
+
+  function inlineSummary() {
+    const src = activeSource();
+    return summarizeInline(auditInlineImages(src?.html || src?.bodyText || "", pool));
+  }
+
+  /**
+   * Bestandsaufnahme der eingebetteten Bilder: Was steckt im HTML, was ist
+   * vorhanden, was wurde aus einer anderen Kopie ergänzt, was fehlt endgültig.
+   */
+  function inlinePanel() {
+    const panel = el("div", "lt-panel");
+    const src = activeSource();
+    const audit = auditInlineImages(src?.html || src?.bodyText || "", pool);
+    if (!audit.length) {
+      panel.append(el("div", "muted", "Diese Fassung bindet keine Bilder per cid: ein."));
+      return panel;
+    }
+    panel.append(
+      el(
+        "div",
+        "muted",
+        "Bilder im Nachrichtentext werden über cid: eingebunden. Fehlt eines in " +
+          "dieser Fassung, wird es aus einer Geschwister-Kopie ergänzt — " +
+          "erkennbar am Namensteil der Content-ID."
+      )
+    );
+    for (const a of audit) {
+      const row = el("div", "lt-att");
+      const url = pool.byCid.get(a.cid) || pool.byStem.get(a.stem);
+      if (url) {
+        const thumb = document.createElement("img");
+        thumb.src = url;
+        thumb.className = "lt-thumb";
+        thumb.alt = a.stem;
+        row.append(thumb);
+      } else {
+        row.append(el("div", "lt-thumb leer", "?"));
+      }
+      const body = el("div", "body");
+      body.append(el("div", null, a.stem || a.cid));
+      const label =
+        a.state === "ok"
+          ? `vorhanden (Kopie ${a.from})`
+          : a.state === "ersetzt"
+          ? `aus Kopie ${a.from} ergänzt`
+          : "fehlt in allen geladenen Kopien";
+      const meta = el("div", "meta", `${label} · ${a.cid}`);
+      if (a.state === "fehlt") meta.style.color = "var(--neg)";
+      if (a.state === "ersetzt") meta.style.color = "var(--pos)";
+      body.append(meta);
+      row.append(body);
+      panel.append(row);
+    }
+    const s2 = summarizeInline(audit);
+    if (s2.missing) {
+      panel.append(
+        el(
+          "div",
+          "muted",
+          "Für die fehlenden Bilder hilft nur eine weitere Kopie: Lade mehr " +
+            "Fassungen in den Leuchttisch (Duplikat-Gruppe oder Auswahl), dann " +
+            "wird hier automatisch nachgefüllt."
+        )
+      );
+    }
+    return panel;
   }
 
   function attachmentPanel() {
@@ -685,6 +809,21 @@ export async function openLightTable(ids, opts = {}) {
     keepBox.style.minHeight = "0";
     keep.append(keepBox, document.createTextNode(" Ausgangs-Mails behalten"));
 
+    let htmlBox = null;
+    if (anyHtml) {
+      const l = document.createElement("label");
+      l.className = "muted";
+      htmlBox = document.createElement("input");
+      htmlBox.type = "checkbox";
+      htmlBox.checked = state.keepHtml;
+      htmlBox.style.minHeight = "0";
+      htmlBox.onchange = () => {
+        state.keepHtml = htmlBox.checked;
+      };
+      l.append(htmlBox, document.createTextNode(" Formatierung & eingebettete Bilder behalten"));
+      bar.append(l);
+    }
+
     const build = el("button", "primary", "Neue Nachricht erzeugen");
     build.onclick = async () => {
       build.disabled = true;
@@ -703,6 +842,27 @@ export async function openLightTable(ids, opts = {}) {
           });
         }
 
+        // HTML-Rumpf: aufgeräumtes Original der aktiven Fassung, mit allen
+        // auflösbaren cid:-Bildern — auch denen aus Geschwister-Kopien.
+        const src = activeSource();
+        const rawHtml = src?.html || (looksLikeHtml(src?.bodyText) ? src.bodyText : "");
+        let htmlBody = "";
+        let inlineImages = [];
+        if (state.keepHtml && rawHtml) {
+          const doc = buildReaderDocument(rawHtml, {
+            images: pool.byCid,
+            stems: pool.byStem,
+            showHistory: true,
+          });
+          htmlBody = doc.document;
+          inlineImages = inlineSetForRebuild(rawHtml, pool)
+            .map((i) => {
+              const d = dataUrlToBytes(i.dataUrl);
+              return d ? { cid: i.cid, contentType: d.contentType, bytes: d.bytes } : null;
+            })
+            .filter(Boolean);
+        }
+
         const bytes = assembleMessage({
           headers: {
             from: sel.from,
@@ -713,6 +873,8 @@ export async function openLightTable(ids, opts = {}) {
             extra: { "X-SupaDupa-Merged-From": ids.join(",") },
           },
           bodyText: clean(sel.bodyText),
+          htmlBody,
+          inlineImages,
           attachments,
         });
 
@@ -722,7 +884,8 @@ export async function openLightTable(ids, opts = {}) {
           await deleteMessages(ids.filter((id) => id !== imported.id), { permanent: false });
         }
         onToast(
-          `Neue Nachricht abgelegt (${attachments.length} Anhänge)` +
+          `Neue Nachricht abgelegt (${attachments.length} Anhänge` +
+            (inlineImages.length ? `, ${inlineImages.length} eingebettete Bilder)` : ")") +
             (keepBox.checked ? " — Ausgangs-Mails unverändert." : " — Ausgangs-Mails im Papierkorb.")
         );
         close();

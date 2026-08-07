@@ -139,7 +139,15 @@ Mittelpunkt** — alles andere ist zugeklappt, bis es gebraucht wird.
      Steuerzeichen (`⌷` Zero-Width, `␣` geschütztes Leerzeichen, `¬`
      bedingter Trennstrich, `␦` Steuerzeichen, `⇄` Schreibrichtung, `◆`
      Ersatzzeichen).
-4. **Anhänge** (zugeklappt): über ihren **Inhalt** zusammengefasst — SHA-256
+4. **Eingebettete Bilder** (zugeklappt): Bestandsaufnahme aller `cid:`-Verweise
+   im HTML — *vorhanden*, *aus Kopie N ergänzt* oder *fehlt in allen Kopien*,
+   jeweils mit Vorschaubild. Fehlt ein Bild in der angezeigten Fassung, wird
+   es **aus einer Geschwister-Kopie ergänzt**: Outlook vergibt beim
+   Weiterleiten neue Content-IDs, behält aber den Namensteil
+   (`image001.png@…`) — darüber findet sich dasselbe Bild wieder. Gibt es
+   mehrere Fassungen, gewinnt die größere Datei. Die Klappe wird gold, sobald
+   etwas endgültig fehlt.
+5. **Anhänge** (zugeklappt): über ihren **Inhalt** zusammengefasst — SHA-256
    über die dekodierten Dateibytes. 10 Kopien mit je 5 Anhängen ergeben genau
    **5 Einträge**, jeder mit allen vorkommenden Namensvarianten als Chips und
    einem frei editierbaren Dateinamen. Zeile anklicken und **Leertaste**
@@ -147,18 +155,38 @@ Mittelpunkt** — alles andere ist zugeklappt, bis es gebraucht wird.
    Esc schließt, alles andere über „Speichern"). Der Typ wird aus den Bytes
    erkannt — ein PDF, das sich als `application/octet-stream` ausgibt, wird
    trotzdem angezeigt.
-5. **Weiter zugeklappt**: *Empfänger & Absender*, *Datum*. Jede Zeile
+6. **Weiter zugeklappt**: *Empfänger & Absender*, *Datum*. Jede Zeile
    trägt ihre Kurzfassung („Max Mustermann <max@…>", „3 von 3 ausgewählt, 2
    umbenannt") und wird gold umrandet, wenn dort etwas zu prüfen ist — so
    siehst du zugeklappt, ob du hineinsehen musst. Erst beim Aufklappen werden
    die Varianten gebaut.
-6. **Fußleiste**: *Ausgangs-Mails behalten* (Vorgabe an) und *Neue Nachricht
+7. **Fußleiste**: *Formatierung & eingebettete Bilder behalten*,
+   *Ausgangs-Mails behalten* (Vorgabe an) und *Neue Nachricht
    erzeugen*.
 
-Die neue Nachricht wird als **frisches multipart/mixed** gebaut: gewählte
-Kopfzeilen, gesäuberter Text als UTF-8/Quoted-Printable, und jeder gewählte
-Anhang als **byte-genau übernommener MIME-Block** aus seiner Quell-Mail — nur
-die Dateinamen-Kopfzeile wird neu geschrieben, die kodierte Nutzlast nie.
+Ganz oben warnt eine goldene Zeile, wenn der Text einen Anhang **ankündigt**
+(„anbei", „in der pdf-Datei"), aber keiner vorhanden ist — mit dem Hinweis,
+die anderen Fassungen zu prüfen.
+
+Die neue Nachricht wird **frisch aufgebaut**, in der Verschachtelung, die
+Mailprogramme erwarten:
+
+```
+multipart/mixed
+  multipart/alternative
+    text/plain                  ← Rückfallebene
+    multipart/related
+      text/html                 ← die formatierte Mail
+      image/png  [cid:bild@1]   ← eingebettetes Bild
+  application/pdf  "Rechnung.pdf"  ← Dateianhang
+```
+
+Die Bilder werden dabei **unter der Content-ID eingesetzt, die das HTML
+benutzt** — auch wenn sie aus einer Kopie mit anderer ID stammen. Damit
+funktionieren sie in der neuen Nachricht wieder. Jeder gewählte Anhang bleibt
+ein **byte-genau übernommener MIME-Block** aus seiner Quell-Mail; nur die
+Dateinamen-Kopfzeile wird neu geschrieben, die kodierte Nutzlast nie.
+Ohne HTML entsteht wie bisher eine reine Textnachricht.
 Anders als beim automatischen Zusammenführen dürfen die Anhänge dabei aus
 **verschiedenen** Kopien stammen. Ein `X-SupaDupa-Merged-From`-Header hält
 fest, aus welchen Nachrichten sie gebaut wurde.
@@ -307,7 +335,7 @@ sauberer Empfänger in der anderen), statt „löschen“ lieber
 npm test      # node:test, keine Abhängigkeiten
 ```
 
-111 Tests decken Header-Kodierung, das Byte-genaue Umschreiben der
+120 Tests decken Header-Kodierung, das Byte-genaue Umschreiben der
 Roh-Nachricht, die Empfängerprüfung samt Vorschlägen, die
 Dateinamen-Plausibilität, den Textvergleich sowie Gruppierung und
 Kopie-Bewertung der Duplikatsuche, die MIME-Teil-Umbenennung und den
@@ -315,7 +343,8 @@ Zusammenführungs-Plan, die Zeichen-Säuberung, das Kandidaten-Modell und den
 Neubau vollständiger Nachrichten sowie das Dekodieren und Hashen von
 Anhängen ab (inklusive eines Laufs über 10.000 Kopfdatensätze und des Falls
 „10 Kopien × 5 Anhänge → 5 Einträge") sowie das Aufbereiten einer echten
-Word-Mail (Testdaten anonymisiert).
+Word-Mail (Testdaten anonymisiert) sowie das Ergänzen fehlender
+Inline-Bilder und den Neubau mit `multipart/related`.
 
 ## Aufbau
 
@@ -332,6 +361,7 @@ Word-Mail (Testdaten anonymisiert).
 | `lib/mimeparts.js` | MIME-Teile begehen, herausschneiden, Dateinamen setzen |
 | `lib/textclean.js` | Steuer-/Sonderzeichen erkennen und entfernen |
 | `lib/htmlmail.js` | Word-HTML aufräumen, Verlauf trennen, Lesedokument bauen |
+| `lib/inlineparts.js` | eingebettete Bilder über alle Kopien sammeln und Lücken füllen |
 | `lib/candidates.js` | Leuchttisch-Modell: Varianten je Bestandteil, Vorauswahl |
 | `lib/assemble.js` | neue RFC-5322/MIME-Nachricht aus gewählten Teilen bauen |
 | `lib/merge.js` | Zusammenführungs-Plan: Grundlage, beste Empfänger, Umbenennungen |
