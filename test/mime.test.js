@@ -75,3 +75,21 @@ test("Adress-Plausibilität", () => {
   assert.ok(!isPlausibleEmail("max example.de"));
   assert.ok(!isPlausibleEmail(""));
 });
+
+test("unquotiertes „Nachname, Vorname <adresse>“ bleibt EIN Empfänger", () => {
+  // Formal müsste der Name in Anführungszeichen stehen; Outlook liefert ihn
+  // trotzdem oft nackt. Ohne Sonderbehandlung zerfiele die Person in zwei
+  // Einträge — einen ohne Adresse.
+  const list = parseAddressList("Muster, Bernd <b.muster@example.org>");
+  assert.equal(list.length, 1);
+  assert.deepEqual(list[0], { name: "Muster, Bernd", email: "b.muster@example.org" });
+
+  const zwei = parseAddressList("Muster, Bernd <b@x.de>, Beispiel, Anna <a@y.de>");
+  assert.deepEqual(
+    zwei.map((r) => `${r.name}|${r.email}`),
+    ["Muster, Bernd|b@x.de", "Beispiel, Anna|a@y.de"]
+  );
+
+  // Normale Listen bleiben unangetastet
+  assert.equal(parseAddressList("a@b.de, c@d.de").length, 2);
+});

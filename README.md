@@ -29,9 +29,24 @@ gemeldet werden:
 | Vertippte Domain (`gmial.com`) | `typo-domain` mit Korrekturvorschlag |
 
 Grundlage sind **Profile**: „Zu dieser Adresse gehört dieser Name“, mit
-beliebig vielen Schreibweisen und Adressen je Person. Profile lassen sich von
-Hand pflegen oder aus dem Adressbuch übernehmen (häufigster Name je Adresse
-gewinnt).
+beliebig vielen Schreibweisen und Adressen je Person. Sie gelten für **jede**
+Person — Absender wie Empfänger, nicht nur für die eigenen Adressen.
+
+**Adressen in diesem Ordner** (Klappe über den Profilen) ist der schnelle Weg
+dorthin: Nach dem Einlesen stehen dort alle Namen und Adressen aus Absender-,
+Empfänger- und Kopie-Zeilen des Ordners — je Adresse mit **allen gefundenen
+Schreibweisen samt Häufigkeit** („Bernd Muster (12)", „Muster, Bernd (3)",
+„ohne Namen (5)") und der Zahl der abweichenden Vorkommen. Ein Feld je
+Adresse, einmal die richtige Schreibweise festlegen (oder einen der Chips
+anklicken), *Als Profile speichern* — und ab da zeigt der Leuchttisch überall
+gleich den richtigen Namen, ohne dass dort noch etwas anzupassen wäre.
+
+- *Vorschläge übernehmen* füllt alle leeren Felder mit der häufigsten echten
+  Schreibweise (ein Name, der bloß die Adresse wiederholt, zählt nicht).
+- *nur uneinheitliche zeigen* blendet die Adressen aus, bei denen ohnehin
+  alles stimmt — das ist die Vorgabe.
+
+Alternativ von Hand pflegen oder aus dem Thunderbird-Adressbuch übernehmen.
 
 **Wie das Speichern technisch funktioniert (wichtig):** Thunderbird bietet
 keine API, um Kopfzeilen einer *gespeicherten* Nachricht in-place zu ändern.
@@ -365,7 +380,7 @@ sauberer Empfänger in der anderen), statt „löschen“ lieber
 npm test      # node:test, keine Abhängigkeiten
 ```
 
-139 Tests decken Header-Kodierung, das Byte-genaue Umschreiben der
+149 Tests decken Header-Kodierung, das Byte-genaue Umschreiben der
 Roh-Nachricht, die Empfängerprüfung samt Vorschlägen, die
 Dateinamen-Plausibilität, den Textvergleich sowie Gruppierung und
 Kopie-Bewertung der Duplikatsuche, die MIME-Teil-Umbenennung und den
@@ -392,6 +407,7 @@ Fehler, die den Einzelteil-Tests entgangen sind.
 | `lib/recipients.js` | Profile, Empfängerprüfung, Korrekturvorschläge |
 | `lib/attachments.js` | Anhang- und Dateinamen-Plausibilität |
 | `lib/attachcontent.js` | Inhalts-Hash, Typ-Erkennung aus Bytes, Vorschau-Eignung |
+| `lib/addressbook.js` | alle Namen/Adressen eines Ordners, Schreibweisen, Profile daraus |
 | `lib/review.js` | Vormerkungen des Durchgangs, Übersichtszahlen, Klartext-Plan |
 | `lib/rebuild.js` | gemeinsamer Neubau für Leuchttisch und Stapel |
 | `lib/dedupe.js` | Duplikat-Gruppen, Inhalts-Prüfsumme, Bewertung „welche Kopie bleibt“ |

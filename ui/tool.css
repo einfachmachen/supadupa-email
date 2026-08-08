@@ -823,3 +823,50 @@ details > summary {
   outline: 2px solid var(--pos);
   outline-offset: 1px;
 }
+
+/* Adressliste des Ordners */
+.book-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--bd);
+}
+.book-row.ok {
+  opacity: 0.65;
+}
+.book-row .addr {
+  flex: 1 1 260px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.book-row .addr .mail {
+  font-size: 13.5px;
+}
+.book-row .addr .meta {
+  font-size: 11.5px;
+  color: var(--lbl);
+  margin-top: 2px;
+}
+.book-row .fix {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+.book-row .fix input {
+  width: 100%;
+}
+.book-row .chips {
+  margin-top: 5px;
+}
+.book-row .chip.zaehler {
+  border-style: solid;
+  border-color: var(--bd);
+}
+.book-row .chip.leer {
+  color: var(--gold);
+  border-color: rgba(245, 166, 35, 0.5);
+}
+#bookSummary {
+  font-size: 12px;
+  margin-left: 8px;
+}

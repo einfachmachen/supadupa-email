@@ -58,12 +58,32 @@
         </button>
       </div>
 
-      <details id="profileBox" class="card">
-        <summary>Meine Namen &amp; Adressen (Profile)</summary>
+      <details id="bookBox" class="card">
+        <summary>
+          Adressen in diesem Ordner
+          <span id="bookSummary" class="muted"></span>
+        </summary>
         <p class="muted">
-          Ein Profil sagt: „Zu dieser Adresse gehört dieser Name.“ Daran misst die
-          Prüfung jede Empfänger-Angabe — fehlender, falscher oder abweichend
-          geschriebener Name wird dadurch überhaupt erst erkennbar.
+          Alle Namen und Adressen aus Absender-, Empfänger- und Kopie-Zeilen des
+          geladenen Ordners. Lege hier <b>einmal</b> fest, wie jede Adresse
+          richtig heißt — danach zeigt der Leuchttisch überall die richtige
+          Schreibweise, ohne dass du dort noch etwas anpassen musst.
+        </p>
+        <div class="bar">
+          <button id="btnBookSuggest" class="ghost">Vorschläge übernehmen</button>
+          <button id="btnBookOnlyWork" class="ghost">nur uneinheitliche zeigen</button>
+          <button id="btnBookSave" class="primary">Als Profile speichern</button>
+        </div>
+        <div id="bookList"></div>
+      </details>
+
+      <details id="profileBox" class="card">
+        <summary>Namen &amp; Adressen (Profile)</summary>
+        <p class="muted">
+          Ein Profil sagt: „Zu dieser Adresse gehört dieser Name.“ Das gilt für
+          <b>jede</b> Person, nicht nur für deine eigenen Adressen. Daran misst
+          die Prüfung Absender, Empfänger und Kopie — fehlender, falscher oder
+          abweichend geschriebener Name wird dadurch überhaupt erst erkennbar.
         </p>
         <div id="profiles"></div>
         <div class="bar" style="margin-top: 10px">

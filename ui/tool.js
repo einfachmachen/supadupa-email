@@ -31,6 +31,11 @@ import {
   MARK_LABELS,
 } from "../lib/review.js";
 import { buildRebuild } from "../lib/rebuild.js";
+import {
+  buildFolderBook,
+  mergeIntoProfiles,
+  summarizeBook,
+} from "../lib/addressbook.js";
 import { checkAttachments, suggestName } from "../lib/attachments.js";
 import { compareTexts, classify, compareFacts, htmlToText } from "../lib/similarity.js";
 import {
@@ -59,6 +64,9 @@ const state = {
   mode: MODES.normal,
   review: null, // laufender Durchgang: nur Vormerkungen, keine Änderungen
   table: null, // offener Leuchttisch
+  book: [], // Adressen des Ordners (Namen-Varianten je Adresse)
+  bookFix: new Map(), // Adresse → festgelegte Schreibweise
+  bookOnlyWork: true, // nur Adressen mit uneinheitlicher Schreibweise zeigen
 };
 
 // ---------------------------------------------------------------- Hilfsmittel
@@ -273,6 +281,7 @@ async function loadFolder(folder) {
     state.headers = await listAllMessages(folder, {
       onProgress: (n) => setStatus(`Ordner wird gelesen … ${n} Nachrichten`),
     });
+    buildBook();
     regroup();
   } catch (e) {
     console.error(e);
@@ -296,6 +305,107 @@ function regroup() {
   if (state.review) state.review = createReview(state.groups, { marks: state.review.marks });
   renderGroups();
   render();
+}
+
+// --------------------------------------------------- Adressen des Ordners
+
+/**
+ * Sammelt alle Namen/Adressen des geladenen Ordners. Einmal festlegen, wie
+ * eine Adresse richtig heißt — danach greift es überall.
+ */
+function buildBook() {
+  state.book = buildFolderBook(state.headers);
+  state.bookFix = new Map();
+  for (const e of state.book) {
+    // Bereits als Profil festgelegt? Dann gilt das, sonst der Vorschlag.
+    const known = state.profiles.find((p) =>
+      (p.emails || []).some((x) => String(x).toLowerCase() === e.email)
+    );
+    state.bookFix.set(e.email, known?.preferredName || e.preferred || "");
+  }
+  renderBook();
+}
+
+function renderBook() {
+  const box = $("#bookList");
+  box.textContent = "";
+  const sum = summarizeBook(state.book);
+  $("#bookSummary").textContent = sum.text;
+  $("#btnBookOnlyWork").textContent = state.bookOnlyWork
+    ? `alle ${sum.total} zeigen`
+    : "nur uneinheitliche zeigen";
+
+  const shown = state.bookOnlyWork ? state.book.filter((e) => e.needsWork) : state.book;
+  if (!shown.length) {
+    box.append(
+      el("div", "muted", state.book.length ? "Alle Adressen sind einheitlich." : "Noch kein Ordner geladen.")
+    );
+    return;
+  }
+
+  for (const e of shown.slice(0, 300)) {
+    const row = el("div", `book-row${e.needsWork ? "" : " ok"}`);
+
+    const addr = el("div", "addr");
+    addr.append(el("div", "mail", e.email));
+    addr.append(
+      el(
+        "div",
+        "meta",
+        `${e.count}× im Ordner · ${e.roles.join("/")}` +
+          (e.deviations ? ` · ${e.deviations} abweichend` : " · einheitlich")
+      )
+    );
+    const chips = el("div", "chips");
+    for (const n of e.names.slice(0, 6)) {
+      const c = el("button", "chip zaehler", `${n.name} (${n.count})`);
+      c.title = "Diese Schreibweise übernehmen";
+      c.onclick = () => {
+        state.bookFix.set(e.email, n.name);
+        input.value = n.name;
+      };
+      chips.append(c);
+    }
+    if (e.blank) chips.append(el("span", "chip leer", `ohne Namen (${e.blank})`));
+    addr.append(chips);
+
+    const fix = el("div", "fix");
+    const input = document.createElement("input");
+    input.type = "text";
+    input.value = state.bookFix.get(e.email) || "";
+    input.placeholder = "richtige Schreibweise";
+    input.addEventListener("input", () => state.bookFix.set(e.email, input.value.trim()));
+    fix.append(input);
+    row.append(addr, fix);
+    box.append(row);
+  }
+  if (shown.length > 300) {
+    box.append(el("div", "muted", `… ${shown.length - 300} weitere Adressen (erst die häufigsten).`));
+  }
+}
+
+/** Festlegungen in Profile überführen — ab dann greifen sie überall. */
+async function saveBook() {
+  const decisions = state.book
+    .map((e) => ({
+      email: e.email,
+      preferred: (state.bookFix.get(e.email) || "").trim(),
+      names: e.names.map((n) => n.name),
+    }))
+    .filter((d) => d.preferred);
+
+  if (!decisions.length) {
+    toast("Keine Schreibweise festgelegt.", true);
+    return;
+  }
+  const { profiles, added, updated } = mergeIntoProfiles(decisions, state.profiles);
+  state.profiles = profiles;
+  await api.storage.local.set({ profiles });
+  renderProfiles();
+  renderBook();
+  if (state.headers.length) regroup();
+  analyzeAll();
+  toast(`${added} Profil(e) neu, ${updated} aktualisiert — gilt ab sofort überall.`);
 }
 
 /**
@@ -921,6 +1031,22 @@ function renderCompare() {
 // ------------------------------------------------------------------- Einstieg
 
 $("#btnSelection").onclick = loadSelection;
+$("#btnBookSave").onclick = saveBook;
+$("#btnBookSuggest").onclick = () => {
+  let n = 0;
+  for (const e of state.book) {
+    if (e.preferred && !state.bookFix.get(e.email)) {
+      state.bookFix.set(e.email, e.preferred);
+      n++;
+    }
+  }
+  renderBook();
+  toast(n ? `${n} Vorschläge eingetragen — bitte prüfen und speichern.` : "Nichts zu ergänzen.");
+};
+$("#btnBookOnlyWork").onclick = () => {
+  state.bookOnlyWork = !state.bookOnlyWork;
+  renderBook();
+};
 $("#btnAddProfile").onclick = () => {
   readProfileInputs();
   state.profiles.push({ id: String(Date.now()), preferredName: "", names: [], emails: [] });
