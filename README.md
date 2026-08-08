@@ -160,7 +160,12 @@ Mittelpunkt** — alles andere ist zugeklappt, bis es gebraucht wird.
    markiert und **abgewählt** — es steckt ja schon im Rumpf. Schaltet man
    *Formatierung behalten* ab, wird es automatisch wieder angehakt, damit es
    nicht verlorengeht.
-5. **Anhänge** (zugeklappt): über ihren **Inhalt** zusammengefasst — SHA-256
+5. **Anhänge** (zugeklappt): jede Zeile mit **Miniatur-Vorschau** (Bilder als
+   echtes Vorschaubild, andere Typen als Kachel) — Klick auf die Miniatur
+   vergrößert. **Winzige Teile unter 100 Byte** (0-Byte-Reste, 2/4-Byte-
+   Fragmente, Zählpixel) sind eingeklappt und nicht vorausgewählt; ein Klick
+   auf „N winzige Teile einblenden" zeigt sie trotzdem — weggeräumt, nicht
+   weggeworfen. Ansonsten über ihren **Inhalt** zusammengefasst — SHA-256
    über die dekodierten Dateibytes. 10 Kopien mit je 5 Anhängen ergeben genau
    **5 Einträge**, jeder mit allen vorkommenden Namensvarianten als Chips und
    einem frei editierbaren Dateinamen. Zeile anklicken und **Leertaste**
@@ -168,9 +173,11 @@ Mittelpunkt** — alles andere ist zugeklappt, bis es gebraucht wird.
    Esc schließt, alles andere über „Speichern"). Der Typ wird aus den Bytes
    erkannt — ein PDF, das sich als `application/octet-stream` ausgibt, wird
    trotzdem angezeigt.
-6. **Weiter zugeklappt**: *Empfänger & Absender*, *Datum*. Jede Zeile
-   trägt ihre Kurzfassung („Max Mustermann <max@…>", „3 von 3 ausgewählt, 2
-   umbenannt") und wird gold umrandet, wenn dort etwas zu prüfen ist — so
+6. **Weiter zugeklappt**: *Empfänger & Absender*, *Datum*. Die Zeile
+   *Empfänger & Absender* zeigt schon zugeklappt **Von, An und — falls
+   vorhanden — Kopie** im Klartext; aufklappen muss man nur zum Ändern. Jede
+   Klappe trägt ihre Kurzfassung („2 von 2 ausgewählt, 3 winzige
+   ausgeblendet") und wird gold umrandet, wenn dort etwas zu prüfen ist — so
    siehst du zugeklappt, ob du hineinsehen musst. Erst beim Aufklappen werden
    die Varianten gebaut.
 7. **Fußleiste**: *Formatierung & eingebettete Bilder behalten*,
@@ -348,7 +355,7 @@ sauberer Empfänger in der anderen), statt „löschen“ lieber
 npm test      # node:test, keine Abhängigkeiten
 ```
 
-130 Tests decken Header-Kodierung, das Byte-genaue Umschreiben der
+131 Tests decken Header-Kodierung, das Byte-genaue Umschreiben der
 Roh-Nachricht, die Empfängerprüfung samt Vorschlägen, die
 Dateinamen-Plausibilität, den Textvergleich sowie Gruppierung und
 Kopie-Bewertung der Duplikatsuche, die MIME-Teil-Umbenennung und den

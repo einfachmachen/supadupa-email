@@ -31,7 +31,11 @@ test("Bilder im Text landen im Lesedokument, Dateien in der Anhangsliste", async
 
   assert.ok(loaded.isHtml, "wird als HTML-Mail erkannt");
   assert.equal(loaded.inline.length, 3, "drei eingebettete Bilder");
-  assert.equal(loaded.attachments.length, 5, "nichts verschwindet: 3 Bilder + PDF + JPG");
+  assert.equal(
+    loaded.attachments.length,
+    8,
+    "nichts verschwindet: 3 Bilder + PDF + JPG + drei Winzlinge"
+  );
 
   const names = loaded.attachments.map((a) => a.name);
   assert.ok(names.includes("Einkaufsliste BAUHAUS Rollladendämmung.pdf"));
@@ -86,8 +90,9 @@ test("die neu gebaute Nachricht zeigt die Bilder wieder im Text", async () => {
   assert.equal(images.length, 3);
 
   // Dateianhänge byte-genau übernehmen (PDF + JPG, ohne die Inline-Bilder)
+  // PDF und JPG — ohne die Inline-Bilder und ohne die 0/2/4-Byte-Reste
   const parts = listParts(loaded.bytes).filter(
-    (p) => p.isAttachment && !p.contentId
+    (p) => p.isAttachment && !p.contentId && p.bodyEnd - p.headerEnd > 100
   );
   const attachments = parts.map((p) => {
     const ex = extractPart(loaded.bytes, p);
@@ -136,4 +141,31 @@ test("Nachricht ohne HTML: Anhänge bleiben trotzdem vollständig", async () => 
     2,
     "beide PDFs gefunden"
   );
+});
+
+test("winzige Teile sind abgewählt, echte Anhänge nicht", async () => {
+  const loaded = await loadVia(fixture("inline-and-attachment.eml"));
+  const cands = collectCandidates([loaded], { profiles: [] });
+  const sel = pickDefaults(cands, { profiles: [] });
+
+  const namesOf = (list) =>
+    list
+      .map((s) => s.filename)
+      .sort()
+      .join(", ");
+
+  const tiny = sel.attachments.filter((a) => a.tiny);
+  assert.equal(tiny.length, 3, `winzig: ${namesOf(tiny)}`);
+  assert.ok(tiny.every((a) => !a.include), "0/2/4-Byte-Teile sind nicht vorausgewählt");
+
+  const chosen = sel.attachments.filter((a) => a.include);
+  assert.equal(chosen.length, 2, `gewählt: ${namesOf(chosen)}`);
+  assert.ok(
+    chosen.some((a) => a.filename.endsWith(".pdf")) &&
+      chosen.some((a) => a.filename.endsWith(".jpg")),
+    "PDF und JPG bleiben ausgewählt"
+  );
+
+  // Nichts verschwindet: die Winzlinge stehen weiterhin in der Liste
+  assert.equal(sel.attachments.length, loaded.attachments.length);
 });

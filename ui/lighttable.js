@@ -18,7 +18,7 @@ import {
   folderOf,
   deleteMessages,
 } from "../lib/messageStore.js";
-import { previewKind, shortHash } from "../lib/attachcontent.js";
+import { previewKind, shortHash, isTinyAttachment, TINY_LIMIT } from "../lib/attachcontent.js";
 import { buildReaderDocument, looksLikeHtml, listCidRefs } from "../lib/htmlmail.js";
 import {
   buildImagePool,
@@ -100,6 +100,8 @@ export async function openLightTable(ids, opts = {}) {
     keepHtml: true, // HTML samt eingebetteter Bilder erhalten (wenn vorhanden)
     activeCopyId: null, // null = beste Fassung aus allen Kopien
     focusedAttachment: -1,
+    showTiny: false, // winzige Teile (0/2/4 Byte) einblenden
+    thumbs: new Map(), // key → data-URL, einmal dekodiert
     preview: null, // Schließfunktion der offenen Vorschau
   };
 
@@ -427,14 +429,27 @@ export async function openLightTable(ids, opts = {}) {
 
   function summaryFor(what) {
     if (what === "recipients") {
+      // Alles Wesentliche steht schon zugeklappt da: Von, An und — falls
+      // vorhanden — Kopie. Aufklappen braucht man nur zum Ändern.
       const res = checkRecipientList(sel.to, profiles);
-      if (res.empty) return "kein Empfänger gewählt";
-      return decodeHeaderValue(sel.to) + (res.ok ? "" : " — prüfen");
+      const line = [];
+      if (sel.from) line.push(`Von ${decodeHeaderValue(sel.from)}`);
+      line.push(res.empty ? "An — kein Empfänger" : `An ${decodeHeaderValue(sel.to)}`);
+      if (sel.cc) line.push(`Kopie ${decodeHeaderValue(sel.cc)}`);
+      return line.join(" · ") + (res.empty || res.ok ? "" : " — prüfen");
     }
     if (what === "attachments") {
+      const tiny = sel.attachments.filter((a) => a.tiny).length;
+      const real = sel.attachments.length - tiny;
       const on = sel.attachments.filter((a) => a.include).length;
-      const renamed = sel.attachments.filter((a) => /gebildet|Kopie|keinen Namen/.test(a.reason || "")).length;
-      return `${on} von ${sel.attachments.length} ausgewählt${renamed ? `, ${renamed} umbenannt` : ""}`;
+      const renamed = sel.attachments.filter((a) =>
+        /gebildet|Kopie|keinen Namen/.test(a.reason || "")
+      ).length;
+      return (
+        `${on} von ${real} ausgewählt` +
+        (renamed ? `, ${renamed} umbenannt` : "") +
+        (tiny ? `, ${tiny} winzige ausgeblendet` : "")
+      );
     }
     return "";
   }
@@ -631,6 +646,117 @@ export async function openLightTable(ids, opts = {}) {
     return panel;
   }
 
+  /** Miniatur eines Anhangs — für Bilder das echte Bild, sonst eine Kachel. */
+  function thumbFor(att, st, onOpen) {
+    const kind = previewKind(att.contentType, st.filename);
+    if (kind === "image") {
+      if (!state.thumbs.has(att.key)) {
+        try {
+          const src = att.sources[0];
+          const file = takePartData(byId.get(src.copyId), src.index);
+          let bin = "";
+          for (const b of file.data) bin += String.fromCharCode(b);
+          state.thumbs.set(att.key, `data:${file.contentType};base64,${btoa(bin)}`);
+        } catch (e) {
+          console.warn("Miniatur nicht lesbar", e);
+          state.thumbs.set(att.key, "");
+        }
+      }
+      const url = state.thumbs.get(att.key);
+      if (url) {
+        const img = document.createElement("img");
+        img.src = url;
+        img.className = "lt-thumb klick";
+        img.alt = st.filename;
+        img.title = "Klicken zum Vergrößern";
+        img.onclick = onOpen;
+        return img;
+      }
+    }
+    const label =
+      kind === "pdf" ? "PDF" : (st.filename.split(".").pop() || "?").slice(0, 4).toUpperCase();
+    const tile = el("div", `lt-thumb typ${kind === "none" ? "" : " klick"}`, label);
+    if (kind !== "none") {
+      tile.title = "Klicken zum Öffnen";
+      tile.onclick = onOpen;
+    }
+    return tile;
+  }
+
+  function attachmentRow(att, i) {
+    const st = sel.attachments.find((x) => x.key === att.key);
+    const row = el("div", `lt-att${st.include ? "" : " off"}`);
+    row.tabIndex = 0;
+    row.dataset.attIndex = String(i);
+
+    const box = document.createElement("input");
+    box.type = "checkbox";
+    box.checked = st.include;
+    box.style.minHeight = "0";
+    box.onchange = () => {
+      st.include = box.checked;
+      row.classList.toggle("off", !box.checked);
+    };
+    row.append(box, thumbFor(att, st, () => openPreview(i)));
+
+    const body = el("div", "body");
+    const copies_ = [...new Set(att.sources.map((s2) => s2.copyId))];
+    body.append(
+      el(
+        "div",
+        "meta",
+        `${att.contentType || "unbekannt"} · ${fmtSize(att.size)} · ` +
+          `in ${copies_.length} von ${copies.length} Fassungen` +
+          (att.hash ? ` · ${shortHash(att.hash)}` : "")
+      )
+    );
+
+    const nameIn = document.createElement("input");
+    nameIn.type = "text";
+    nameIn.value = st.filename;
+    nameIn.addEventListener("input", () => {
+      st.filename = nameIn.value.trim();
+    });
+    body.append(nameIn, el("div", "meta", st.reason || ""));
+
+    if (att.inlineToo) {
+      const mark = el(
+        "div",
+        "meta",
+        state.keepHtml
+          ? "im Nachrichtentext eingebunden — steckt schon im Rumpf, deshalb hier ab"
+          : "im Nachrichtentext eingebunden — ohne Formatierung nur als Anhang erhaltbar"
+      );
+      mark.style.color = "var(--gold)";
+      body.append(mark);
+    }
+
+    if (att.names.length > 1) {
+      const chips = el("div", "chips");
+      for (const n of att.names) {
+        const c = el("button", "chip", n);
+        c.title = "Diesen Namen übernehmen";
+        c.onclick = () => {
+          st.filename = n;
+          nameIn.value = n;
+        };
+        chips.append(c);
+      }
+      body.append(chips);
+    }
+
+    const view = el("button", "chip", "Ansehen (Leertaste)");
+    view.onclick = () => openPreview(i);
+    row.append(body, view);
+    row.addEventListener("focus", () => {
+      state.focusedAttachment = i;
+    });
+    row.addEventListener("click", () => {
+      state.focusedAttachment = i;
+    });
+    return row;
+  }
+
   function attachmentPanel() {
     const panel = el("div", "lt-panel");
     if (!cands.attachments.length) {
@@ -642,80 +768,33 @@ export async function openLightTable(ids, opts = {}) {
         "div",
         "muted",
         "Gleiche Dateien sind über ihren Inhalt zusammengefasst. " +
-          "Zeile anklicken und LEERTASTE drücken öffnet die Vorschau."
+          "Miniatur oder Leertaste öffnet die Vorschau."
       )
     );
 
+    const tiny = [];
     cands.attachments.forEach((att, i) => {
-      const st = sel.attachments.find((x) => x.key === att.key);
-      const row = el("div", `lt-att${st.include ? "" : " off"}`);
-      row.tabIndex = 0;
-      row.dataset.attIndex = String(i);
-
-      const box = document.createElement("input");
-      box.type = "checkbox";
-      box.checked = st.include;
-      box.style.minHeight = "0";
-      box.onchange = () => {
-        st.include = box.checked;
-        row.classList.toggle("off", !box.checked);
-      };
-
-      const body = el("div", "body");
-      const copies_ = [...new Set(att.sources.map((s2) => s2.copyId))];
-      const meta = el("div", "meta");
-      meta.textContent =
-        `${att.contentType || "unbekannt"} · ${fmtSize(att.size)} · ` +
-        `in ${copies_.length} von ${copies.length} Fassungen` +
-        (att.hash ? ` · ${shortHash(att.hash)}` : "");
-      body.append(meta);
-      if (att.inlineToo) {
-        const mark = el(
-          "div",
-          "meta",
-          state.keepHtml
-            ? "im Nachrichtentext eingebunden — steckt schon im Rumpf, deshalb hier ab"
-            : "im Nachrichtentext eingebunden — ohne Formatierung nur als Anhang erhaltbar"
-        );
-        mark.style.color = "var(--gold)";
-        body.append(mark);
-      }
-
-      const nameIn = document.createElement("input");
-      nameIn.type = "text";
-      nameIn.value = st.filename;
-      nameIn.addEventListener("input", () => {
-        st.filename = nameIn.value.trim();
-      });
-      body.append(nameIn, el("div", "meta", st.reason || ""));
-
-      if (att.names.length > 1) {
-        const chips = el("div", "chips");
-        for (const n of att.names) {
-          const c = el("button", "chip", n);
-          c.title = "Diesen Namen übernehmen";
-          c.onclick = () => {
-            st.filename = n;
-            nameIn.value = n;
-          };
-          chips.append(c);
-        }
-        body.append(chips);
-      }
-
-      const view = el("button", "chip", "Ansehen (Leertaste)");
-      view.onclick = () => openPreview(i);
-      const kind = previewKind(att.contentType, st.filename);
-      if (kind === "none") view.title = "Kein eingebauter Betrachter — wird zum Speichern angeboten.";
-      row.append(box, body, view);
-      row.addEventListener("focus", () => {
-        state.focusedAttachment = i;
-      });
-      row.addEventListener("click", () => {
-        state.focusedAttachment = i;
-      });
-      panel.append(row);
+      if (isTinyAttachment(att.size)) tiny.push([att, i]);
+      else panel.append(attachmentRow(att, i));
     });
+
+    if (tiny.length) {
+      // Winzlinge nicht wegwerfen, nur wegräumen: 0/2/4-Byte-Reste tragen
+      // keinen Inhalt, sollen aber nachprüfbar bleiben.
+      const toggle = el(
+        "button",
+        "chip",
+        state.showTiny
+          ? `${tiny.length} winzige Teile ausblenden`
+          : `${tiny.length} winzige Teile (unter ${TINY_LIMIT} B) einblenden`
+      );
+      toggle.onclick = () => {
+        state.showTiny = !state.showTiny;
+        render();
+      };
+      panel.append(toggle);
+      if (state.showTiny) for (const [att, i] of tiny) panel.append(attachmentRow(att, i));
+    }
     return panel;
   }
 
