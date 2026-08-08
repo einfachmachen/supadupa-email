@@ -16,11 +16,21 @@ import {
   groupDuplicates,
   summarize,
   removableIds,
-  verifyGroup,
   MODES,
 } from "../lib/dedupe.js";
-import { buildMergePlan } from "../lib/merge.js";
 import { openLightTable } from "./lighttable.js";
+import {
+  createReview,
+  setMark,
+  markOf,
+  overview,
+  groupByMark,
+  markCounts,
+  describePlan,
+  MARKS,
+  MARK_LABELS,
+} from "../lib/review.js";
+import { buildRebuild } from "../lib/rebuild.js";
 import { checkAttachments, suggestName } from "../lib/attachments.js";
 import { compareTexts, classify, compareFacts, htmlToText } from "../lib/similarity.js";
 import {
@@ -30,8 +40,10 @@ import {
   listFolders,
   listAllMessages,
   deleteMessages,
-  mergeParts,
-  mergeGroup,
+  loadForLightTable,
+  inlineImageList,
+  importAssembled,
+  folderOf,
   contactPairs,
   messengerApi as api,
 } from "../lib/messageStore.js";
@@ -45,6 +57,8 @@ const state = {
   headers: [], // Kopfdaten des Ordners (ohne Body)
   groups: [], // Duplikat-Gruppen
   mode: MODES.normal,
+  review: null, // laufender Durchgang: nur Vormerkungen, keine Änderungen
+  table: null, // offener Leuchttisch
 };
 
 // ---------------------------------------------------------------- Hilfsmittel
@@ -238,7 +252,6 @@ function analyzeAll() {
     msg.text = text;
   }
   render();
-  updateBulkFixButton();
   const bad = state.msgs.filter((m) => !m.recipients.ok || m.recipients.empty).length;
   setStatus(
     `${state.msgs.length} Nachricht(en) geprüft · ` +
@@ -280,10 +293,15 @@ function regroup() {
     `${state.headers.length} Nachrichten · ${s.groups} Duplikat-Gruppen · ` +
       `${s.removable} entfernbare Kopien`
   );
+  if (state.review) state.review = createReview(state.groups, { marks: state.review.marks });
   renderGroups();
   render();
 }
 
+/**
+ * Übersicht nach dem Einlesen: Wie viele Nachrichten, wie viele davon
+ * eindeutig — und ein einziger Knopf, der den Durchgang startet.
+ */
 function renderGroups() {
   const box = $("#dupes");
   const body = $("#dupesBody");
@@ -294,137 +312,288 @@ function renderGroups() {
   }
   box.classList.remove("hidden");
 
-  const s = summarize(state.groups);
-  $("#dupeSummary").textContent = s.groups
-    ? `${s.groups} Gruppen, ${s.removable} Kopien könnten weg. Pro Gruppe ist die beste Kopie vorausgewählt — die mit der vollständigsten Empfänger-Angabe.`
-    : "Keine Duplikate nach dem aktuellen Maßstab gefunden.";
-  $("#btnDeleteAll").disabled = !s.removable;
-  $("#btnDeleteAll").textContent = `Alle ${s.removable} Duplikate in den Papierkorb`;
-  $("#btnKeepers").disabled = !s.groups;
+  const ov = overview(state.groups, state.headers.length);
+  $("#dupeSummary").textContent =
+    `${ov.total} Nachrichten · ${ov.unique} eindeutige · ` +
+    `${ov.groups} Gruppen mit Dubletten (${ov.inGroups} Kopien, ${ov.removable} entfernbar)` +
+    (ov.singles ? ` · ${ov.singles} Einzelstücke ohne Dublette` : "");
 
-  const shown = state.groups.slice(0, 200);
-  for (const g of shown) body.append(renderGroup(g));
-  if (state.groups.length > shown.length) {
+  const modeName = { strict: "streng", normal: "normal", lose: "locker" }[state.mode];
+  $("#modeHint").textContent = `Maßstab: ${modeName} — klicken oder rechtsklicken zum Wechseln`;
+
+  if (!state.groups.length) {
     body.append(
-      el(
-        "div",
-        "muted",
-        `… ${state.groups.length - shown.length} weitere Gruppen (werden beim Löschen mitbehandelt).`
-      )
+      el("div", "muted", "Keine Dubletten nach diesem Maßstab. Ein Klick auf den Maßstab wechselt ihn.")
     );
+    $("#btnReview").disabled = true;
+    return;
   }
-}
+  $("#btnReview").disabled = false;
 
-function renderGroup(g) {
-  const card = el("div", "card");
-  const first = g.messages[0];
-  const head = el("div", "subject");
-  head.append(el("div", null, decodeHeaderValue(first.subject) || "(kein Betreff)"));
-  head.append(
+  // Läuft schon ein Durchgang? Dann zeigt die Übersicht die Vormerkungen.
+  if (state.review) {
+    body.append(renderMarks());
+    return;
+  }
+  body.append(
     el(
       "div",
-      "meta",
-      `${decodeHeaderValue(first.author || "")} · ${new Date(first.date).toLocaleString("de-DE")}`
+      "muted",
+      "Der Leuchttisch führt dich Gruppe für Gruppe durch. Dort merkst du nur " +
+        "vor — verändert wird erst hier, wenn du fertig bist."
     )
   );
-  card.append(head);
+  body.append(renderGroupList(state.groups.slice(0, 30), state.groups.length));
+}
 
-  const badges = el("div", "badges");
-  badges.append(el("span", "badge warn", `${g.messages.length} Kopien`));
-  badges.append(
-    el(
-      "span",
-      `badge ${g.verified ? "ok" : ""}`,
-      g.verified ? "Inhalt identisch (geprüft)" : "Inhalt ungeprüft"
-    )
-  );
-  for (const r of g.reasons) badges.append(el("span", "badge", r));
-  card.append(badges);
-
-  const sec = el("section", "block");
-  for (const m of g.messages) {
+/** Knappe Liste der Gruppen (Betreff, Datum, Anzahl Kopien). */
+function renderGroupList(groups, total) {
+  const wrap = el("div");
+  for (const g of groups) {
+    const first = g.messages[0];
     const row = el("div", "att");
-    const radio = document.createElement("input");
-    radio.type = "radio";
-    radio.name = `keep-${g.key}`;
-    radio.checked = m.id === g.keeperId;
-    radio.style.minHeight = "0";
-    radio.onchange = () => {
-      g.keeperId = m.id;
-      renderGroups();
-    };
     const info = el("div", "name");
-    const to = (m.recipients || []).join(", ");
-    info.append(el("div", null, to ? decodeHeaderValue(to) : "— keine Empfänger-Angabe —"));
+    info.append(el("div", null, decodeHeaderValue(first.subject) || "(kein Betreff)"));
     info.append(
       el(
         "div",
         "meta",
-        `${new Date(m.date).toLocaleString("de-DE")} · ${m.folder?.path || ""} · Punkte ${
-          g.scores[m.id]
-        }${m.id === g.keeperId ? " · bleibt" : ""}`
+        `${new Date(first.date).toLocaleDateString("de-DE")} · ${g.messages.length} Kopien · ` +
+          decodeHeaderValue(first.author || "")
       )
     );
-    const open = el("button", "chip", "öffnen & prüfen");
-    open.onclick = () => loadIds([m.id]);
-    row.append(radio, info, el("div", "size", fmtSize(m.size)), open);
-    sec.append(row);
+    const open = el("button", "chip", "ansehen");
+    open.onclick = () => startReview(state.groups.indexOf(g));
+    row.append(info, open);
+    wrap.append(row);
   }
+  if (total > groups.length) {
+    wrap.append(el("div", "muted", `… und ${total - groups.length} weitere Gruppen.`));
+  }
+  return wrap;
+}
+
+/** Nach dem Durchgang: Vormerkungen gruppiert, mit den Abschluss-Knöpfen. */
+function renderMarks() {
+  const wrap = el("div");
+  const by = groupByMark(state.review);
+  const counts = markCounts(state.review);
+
+  wrap.append(
+    el(
+      "div",
+      "muted",
+      `${counts.decided} von ${counts.total} Gruppen entschieden. ` +
+        "Nichts davon ist bisher ausgeführt."
+    )
+  );
+
+  const section = (kind, list, extra) => {
+    if (!list.length) return;
+    const fold = document.createElement("details");
+    fold.className = `lt-fold${kind === MARKS.delete ? " warn" : ""}`;
+    fold.open = kind !== MARKS.none;
+    const sum = document.createElement("summary");
+    sum.append(el("span", "t", `${MARK_LABELS[kind]} (${list.length})`));
+    const copies = list.reduce((n, g) => n + g.messages.length, 0);
+    sum.append(el("span", "s", `${copies} Kopien betroffen`));
+    fold.append(sum);
+    if (extra) fold.append(extra);
+    fold.append(renderGroupList(list, list.length));
+    wrap.append(fold);
+  };
+
+  const mergeBar = el("div", "bar");
+  const bMerge = el("button", "primary", `${by.merge.length} Gruppe(n) jetzt zusammenfassen`);
+  bMerge.onclick = () => executeMarks(MARKS.merge);
+  mergeBar.append(bMerge);
+
+  const delBar = el("div", "bar");
+  const bDel = el("button", "danger", `${by.delete.length} Gruppe(n) jetzt bereinigen`);
+  bDel.onclick = () => executeMarks(MARKS.delete);
+  delBar.append(bDel);
+
+  section(MARKS.merge, by.merge, by.merge.length ? mergeBar : null);
+  section(MARKS.delete, by.delete, by.delete.length ? delBar : null);
+  section(MARKS.later, by.later, null);
+  section(MARKS.none, by.none, null);
 
   const bar = el("div", "bar");
-  const verify = el("button", "ghost", g.verified ? "Inhalt geprüft ✓" : "Inhalte prüfen");
-  verify.disabled = Boolean(g.verified);
-  verify.onclick = () => verifyOneGroup(g);
-  const light = el("button", "primary", "Leuchttisch öffnen");
-  light.onclick = () => openTableFor(g.messages.map((m) => m.id));
-  const merge = el("button", "ghost", "automatisch zusammenführen");
-  merge.onclick = () => mergeOneGroup(g);
-  bar.append(verify, light, merge);
-  const del = el("button", "danger", `${g.messages.length - 1} Duplikate löschen`);
-  del.onclick = async () => {
-    const ids = removableIds(g);
-    if (!ids.length) return;
-    await runDelete(ids, `${ids.length} Kopie(n)`);
-    state.headers = state.headers.filter((h) => !ids.includes(h.id));
-    regroup();
+  if (counts.none) {
+    const cont = el("button", "primary", "Durchgang fortsetzen");
+    cont.onclick = () => startReview(nextUndecided());
+    bar.append(cont);
+  }
+  const reset = el("button", "ghost", "Vormerkungen verwerfen");
+  reset.onclick = () => {
+    if (!window.confirm("Alle Vormerkungen verwerfen?")) return;
+    state.review = null;
+    renderGroups();
   };
-  bar.append(del);
-  sec.append(bar);
-  card.append(sec);
-  return card;
+  bar.append(reset);
+  wrap.append(bar);
+  return wrap;
 }
 
-/**
- * Lädt die Inhalte einer Gruppe und teilt sie anhand der Inhalts-Prüfsumme
- * auf — erst danach ist „das ist wirklich dieselbe Nachricht“ belastbar.
- */
-async function verifyOneGroup(g) {
-  const contents = new Map();
-  for (const m of g.messages) {
-    setStatus(`Prüfe Inhalte … ${contents.size + 1}/${g.messages.length}`);
-    try {
-      const full = await loadMessage(m.id);
-      contents.set(m.id, {
-        bodyText: bodyText(full),
-        attachments: full.attachments,
-      });
-      m._loaded = full;
-    } catch (e) {
-      console.warn("Inhalt nicht lesbar", m.id, e);
-    }
-  }
-  const parts = verifyGroup(g, contents);
-  const at = state.groups.indexOf(g);
-  state.groups.splice(at, 1, ...parts);
-  const dropped = g.messages.length - parts.reduce((n, p) => n + p.messages.length, 0);
-  renderGroups();
-  toast(
-    dropped
-      ? `Inhalte geprüft: ${dropped} Nachricht(en) waren KEINE Dublette und sind aus der Gruppe raus.`
-      : "Inhalte geprüft: alle Kopien sind inhaltlich identisch."
+function nextUndecided() {
+  const i = state.review.groups.findIndex(
+    (g) => markOf(state.review, g.key) === MARKS.none
   );
-  setStatus(`${state.groups.length} Gruppen`);
+  return i < 0 ? 0 : i;
 }
+
+
+// ------------------------------------------------------------- Durchgang
+//
+// Einmal durch alle Gruppen: ansehen, vormerken, weiter. Ausgeführt wird
+// nichts — die Vormerkungen sammeln sich, bis du sie in der Übersicht
+// bestätigst.
+
+/** Startet (oder setzt fort) den Durchgang. */
+async function startReview(index = 0) {
+  if (!state.groups.length) return;
+  if (!state.review || state.review.groups !== state.groups) {
+    state.review = createReview(state.groups, { marks: state.review?.marks });
+  }
+  await openReviewAt(Math.max(0, Math.min(index, state.groups.length - 1)));
+}
+
+async function openReviewAt(index) {
+  const group = state.groups[index];
+  if (!group) return finishReview(true);
+  state.table?.close?.();
+  state.table = null;
+  state.review.index = index;
+
+  const ids = group.messages.map((m) => m.id);
+  try {
+    state.table = await openLightTable(ids, {
+      profiles: state.profiles,
+      onStatus: setStatus,
+      onToast: toast,
+      review: {
+        index,
+        total: state.groups.length,
+        currentMark: markOf(state.review, group.key),
+        onDecide: async (kind) => {
+          if (kind) state.review = { ...setMark(state.review, group.key, kind), index };
+          await saveReview();
+          const next = index + 1;
+          if (next < state.groups.length) await openReviewAt(next);
+          else finishReview(true);
+        },
+        onFinish: () => finishReview(),
+      },
+    });
+  } catch (e) {
+    console.error(e);
+    toast(`Gruppe ${index + 1} konnte nicht geöffnet werden: ${e.message}`, true);
+    finishReview();
+  }
+}
+
+function finishReview(complete = false) {
+  state.table?.close?.();
+  state.table = null;
+  renderGroups();
+  if (state.review) {
+    const c = markCounts(state.review);
+    setStatus(
+      `Durchgang ${complete ? "abgeschlossen" : "unterbrochen"} · ` +
+        `${c.merge} zusammenfassen · ${c.delete} löschen · ${c.later} später · ${c.none} offen`
+    );
+  }
+}
+
+async function saveReview() {
+  try {
+    await api.storage.local.set({
+      [`review:${state.folder?.path || "unbekannt"}`]: { marks: state.review.marks },
+    });
+  } catch (e) {
+    console.warn("Vormerkungen nicht gespeichert", e);
+  }
+}
+
+/** Führt die Vormerkungen einer Art aus — mit Rückfrage im Klartext. */
+async function executeMarks(kind) {
+  if (state.busy || !state.review) return;
+  const list = groupByMark(state.review)[kind];
+  if (!list.length) return;
+
+  const permanent = $("#permDelete").checked;
+  const what =
+    kind === MARKS.merge
+      ? `${list.length} Gruppe(n) werden zu je EINER neuen Nachricht zusammengefasst.`
+      : `${list.length} Gruppe(n) werden bereinigt — überzählige Kopien ` +
+        (permanent ? "ENDGÜLTIG gelöscht." : "in den Papierkorb.");
+  const lines = describePlan(state.review).join("\n");
+  if (!window.confirm(`${what}\n\n${lines}\n\nAusführen?`)) return;
+
+  state.busy = true;
+  const done = [];
+  const failed = [];
+  try {
+    for (let i = 0; i < list.length; i++) {
+      const g = list[i];
+      setStatus(
+        `${kind === MARKS.merge ? "Fasse zusammen" : "Bereinige"} … ${i + 1}/${list.length}`
+      );
+      try {
+        if (kind === MARKS.merge) await mergeOneMarkedGroup(g, permanent);
+        else {
+          const ids = removableIds(g);
+          if (ids.length) await deleteMessages(ids, { permanent });
+        }
+        done.push(g);
+      } catch (e) {
+        console.error(e);
+        failed.push(`${decodeHeaderValue(g.messages[0].subject)}: ${e.message}`);
+      }
+    }
+  } finally {
+    state.busy = false;
+  }
+
+  // Erledigte Gruppen aus Liste und Vormerkungen nehmen
+  const gone = new Set(done.map((g) => g.key));
+  state.groups = state.groups.filter((g) => !gone.has(g.key));
+  const marks = { ...state.review.marks };
+  for (const k of gone) delete marks[k];
+  const touched = new Set(done.flatMap((g) => g.messages.map((m) => m.id)));
+  state.headers = state.headers.filter((h) => !touched.has(h.id));
+  state.review = { ...state.review, marks, groups: state.groups };
+  await saveReview();
+  renderGroups();
+
+  toast(
+    failed.length
+      ? `${done.length} erledigt, ${failed.length} fehlgeschlagen (Details in der Konsole).`
+      : `${done.length} Gruppe(n) erledigt.`,
+    failed.length > 0
+  );
+  if (failed.length) console.error("Fehlgeschlagen:", failed);
+}
+
+/** Eine vorgemerkte Gruppe zusammenfassen — derselbe Weg wie im Leuchttisch. */
+async function mergeOneMarkedGroup(g, permanent = false) {
+  const ids = g.messages.map((m) => m.id);
+  const copies = [];
+  for (const id of ids) {
+    const loaded = await loadForLightTable(id);
+    loaded.inline = inlineImageList(loaded);
+    copies.push(loaded);
+  }
+  const { bytes } = buildRebuild(copies, { profiles: state.profiles, keepHtml: true });
+  const folder = await folderOf(copies[0].header);
+  const imported = await importAssembled(bytes, folder);
+  await deleteMessages(
+    ids.filter((id) => id !== imported.id),
+    { permanent }
+  );
+  return imported;
+}
+
 
 /** Öffnet den Leuchttisch für beliebige Nachrichten-IDs. */
 async function openTableFor(ids) {
@@ -456,181 +625,6 @@ async function openTableFor(ids) {
 }
 
 /** Baut aus einer Gruppe eine vollständige Nachricht und ersetzt die Kopien. */
-async function mergeOneGroup(g) {
-  if (state.busy) return;
-  state.busy = true;
-  try {
-    setStatus("Kopien werden gelesen …");
-    const copies = [];
-    for (const m of g.messages) {
-      const full = m._loaded || (await loadMessage(m.id));
-      m._loaded = full;
-      copies.push({
-        id: m.id,
-        to: full.to || "",
-        cc: full.cc || "",
-        size: m.size || 0,
-        attachments: full.attachments,
-        header: full.header,
-      });
-    }
-
-    // Grundlage bestimmen und deren echte MIME-Teile holen
-    const provisional = buildMergePlan({ copies, profiles: state.profiles, baseParts: [], ctx: {} });
-    const baseCopy = copies.find((c) => c.id === provisional.baseId) || copies[0];
-    const baseFull = g.messages.find((m) => m.id === baseCopy.id)._loaded;
-    const { parts } = await mergeParts(baseCopy.id);
-
-    const plan = buildMergePlan({
-      copies,
-      profiles: state.profiles,
-      baseParts: parts,
-      baseId: baseCopy.id,
-      ctx: {
-        subject: baseFull.header.subject,
-        body: bodyText(baseFull),
-        date: baseFull.header.date,
-      },
-    });
-
-    const text =
-      "Aus den Kopien wird EINE vollständige Nachricht gebaut:\n\n" +
-      plan.notes.map((n) => `• ${n}`).join("\n") +
-      `\n\nDanach werden die ${plan.removableIds.length} bisherigen Kopien ` +
-      (($("#permDelete").checked && "ENDGÜLTIG gelöscht") || "in den Papierkorb verschoben") +
-      ".\n\nFortfahren?";
-    if (!window.confirm(text)) return;
-
-    setStatus("Vollständige Nachricht wird abgelegt …");
-    const { newId } = await mergeGroup({
-      baseId: plan.baseId,
-      headers: plan.headers,
-      renames: plan.renames,
-      deleteIds: plan.removableIds,
-      permanent: $("#permDelete").checked,
-    });
-
-    const gone = new Set(plan.removableIds);
-    state.headers = state.headers.filter((h) => !gone.has(h.id));
-    state.groups = state.groups.filter((x) => x !== g);
-    renderGroups();
-    toast("Zusammengeführt — die neue Nachricht liegt im selben Ordner.");
-    await loadIds([newId]);
-  } catch (e) {
-    console.error(e);
-    toast(`Zusammenführen fehlgeschlagen: ${e.message}`, true);
-  } finally {
-    state.busy = false;
-  }
-}
-
-async function mergeAllGroups() {
-  const groups = [...state.groups];
-  if (!groups.length) return;
-  if (
-    !window.confirm(
-      `${groups.length} Gruppen werden nacheinander zu je einer vollständigen ` +
-        "Nachricht zusammengeführt. Jede Gruppe zeigt vorher ihren Plan; mit " +
-        "„Abbrechen“ überspringst du sie. Starten?"
-    )
-  ) {
-    return;
-  }
-  for (const g of groups) {
-    if (!state.groups.includes(g)) continue;
-    await mergeOneGroup(g);
-  }
-}
-
-async function runDelete(ids, label) {
-  const permanent = $("#permDelete").checked;
-  const where = permanent ? "ENDGÜLTIG gelöscht" : "in den Papierkorb verschoben";
-  if (!window.confirm(`${label} werden ${where}. Fortfahren?`)) return false;
-  state.busy = true;
-  try {
-    await deleteMessages(ids, {
-      permanent,
-      onProgress: (done, total) => setStatus(`Lösche … ${done}/${total}`),
-    });
-    toast(`${ids.length} Nachricht(en) ${where}.`);
-    return true;
-  } catch (e) {
-    console.error(e);
-    toast(`Löschen fehlgeschlagen: ${e.message}`, true);
-    return false;
-  } finally {
-    state.busy = false;
-  }
-}
-
-async function deleteAllDupes() {
-  const ids = state.groups.flatMap(removableIds);
-  if (!ids.length) return;
-  const ok = await runDelete(ids, `${ids.length} Duplikate aus ${state.groups.length} Gruppen`);
-  if (!ok) return;
-  const gone = new Set(ids);
-  state.headers = state.headers.filter((h) => !gone.has(h.id));
-  regroup();
-}
-
-/** Lädt die Kopien, die bleiben sollen, zur Empfänger-Korrektur in die Liste. */
-async function loadKeepers() {
-  const ids = state.groups.map((g) => g.keeperId).slice(0, 50);
-  if (!ids.length) return;
-  await loadIds(ids);
-  updateBulkFixButton();
-}
-
-function pendingFixes() {
-  return state.msgs
-    .map((m) => ({ msg: m, value: applySuggestions(m.to, state.profiles) }))
-    .filter((x) => x.value && x.value !== (x.msg.to || "").trim());
-}
-
-function updateBulkFixButton() {
-  const n = pendingFixes().length;
-  const btn = $("#btnFixAll");
-  btn.disabled = !n;
-  btn.textContent = n
-    ? `Empfänger in ${n} Nachricht(en) korrigieren`
-    : "Keine automatischen Korrekturen offen";
-}
-
-async function fixAllRecipients() {
-  const fixes = pendingFixes();
-  if (!fixes.length) return;
-  if (
-    !window.confirm(
-      `${fixes.length} Nachricht(en) bekommen eine neue Empfänger-Zeile.\n\n` +
-        "Jede wird dabei neu abgelegt (Original in den Papierkorb). Fortfahren?"
-    )
-  ) {
-    return;
-  }
-  state.busy = true;
-  let done = 0;
-  const failed = [];
-  for (const { msg, value } of fixes) {
-    try {
-      setStatus(`Korrigiere … ${done + 1}/${fixes.length}`);
-      await rewriteHeaders(msg.id, { To: value }, { permanent: false });
-      done++;
-    } catch (e) {
-      console.error(e);
-      failed.push(`${decodeHeaderValue(msg.header.subject)}: ${e.message}`);
-    }
-  }
-  state.busy = false;
-  toast(
-    failed.length
-      ? `${done} korrigiert, ${failed.length} fehlgeschlagen (Details in der Konsole).`
-      : `${done} Nachricht(en) korrigiert.`,
-    failed.length > 0
-  );
-  if (failed.length) console.error("Fehlgeschlagen:", failed);
-  if (state.folder) await loadFolder(state.folder);
-}
-
 // ------------------------------------------------------------------ Rendern
 
 function render() {
@@ -927,7 +921,15 @@ function renderCompare() {
 // ------------------------------------------------------------------- Einstieg
 
 $("#btnSelection").onclick = loadSelection;
-$("#btnReload").onclick = () => analyzeAll();
+$("#btnAddProfile").onclick = () => {
+  readProfileInputs();
+  state.profiles.push({ id: String(Date.now()), preferredName: "", names: [], emails: [] });
+  renderProfiles();
+  $("#profileBox").open = true;
+};
+$("#btnSaveProfiles").onclick = saveProfiles;
+$("#btnFromBook").onclick = profilesFromAddressBook;
+
 $("#btnLightTable").onclick = () => {
   if (state.msgs.length < 2) {
     toast("Dafür müssen mindestens zwei Nachrichten geladen sein.", true);
@@ -935,32 +937,59 @@ $("#btnLightTable").onclick = () => {
   }
   openTableFor(state.msgs.map((m) => m.id));
 };
-$("#btnAddProfile").onclick = () => {
-  readProfileInputs();
-  state.profiles.push({
-    id: String(Date.now()),
-    preferredName: "",
-    names: [],
-    emails: [],
-  });
-  renderProfiles();
-  $("#profileBox").open = true;
-};
-$("#btnSaveProfiles").onclick = saveProfiles;
-$("#btnFromBook").onclick = profilesFromAddressBook;
+$("#btnReview").onclick = () => startReview(state.review ? nextUndecided() : 0);
 $("#folderSel").onchange = async (e) => {
   const opt = e.target.selectedOptions[0];
   if (!opt?._folder) return;
+  state.review = null;
   await loadFolder(opt._folder);
 };
-$("#modeSel").onchange = (e) => {
-  state.mode = e.target.value;
-  if (state.headers.length) regroup();
-};
-$("#btnDeleteAll").onclick = deleteAllDupes;
-$("#btnMergeAll").onclick = mergeAllGroups;
-$("#btnKeepers").onclick = loadKeepers;
-$("#btnFixAll").onclick = fixAllRecipients;
+
+// --- Maßstab: Kontextmenü (Rechtsklick auf die Übersicht) oder Klick auf die
+//     Maßstab-Anzeige. Kein Auswahlfeld mehr — der Maßstab gehört zum Ordner,
+//     nicht in die Werkzeugleiste.
+const modeMenu = $("#modeMenu");
+function openModeMenu(x, y) {
+  modeMenu.classList.remove("hidden");
+  modeMenu.style.left = `${Math.max(8, Math.min(x, window.innerWidth - 280))}px`;
+  modeMenu.style.top = `${Math.max(8, Math.min(y, window.innerHeight - 220))}px`;
+  for (const b of modeMenu.querySelectorAll("button")) {
+    b.classList.toggle("aktiv", b.dataset.mode === state.mode);
+  }
+}
+const closeModeMenu = () => modeMenu.classList.add("hidden");
+$("#dupes").addEventListener("contextmenu", (ev) => {
+  if (!state.headers.length) return;
+  ev.preventDefault();
+  openModeMenu(ev.clientX, ev.clientY);
+});
+$("#modeHint").addEventListener("click", (ev) => {
+  const r = ev.target.getBoundingClientRect();
+  openModeMenu(r.left, r.bottom + 4);
+});
+document.addEventListener("click", (ev) => {
+  if (!modeMenu.contains(ev.target) && ev.target !== $("#modeHint")) closeModeMenu();
+});
+for (const b of modeMenu.querySelectorAll("button")) {
+  b.onclick = () => {
+    closeModeMenu();
+    if (b.dataset.mode === state.mode) return;
+    if (
+      state.review &&
+      markCounts(state.review).decided &&
+      !window.confirm(
+        "Ein anderer Maßstab bildet die Gruppen neu — die bisherigen " +
+          "Vormerkungen gehen dabei verloren. Fortfahren?"
+      )
+    ) {
+      return;
+    }
+    state.mode = b.dataset.mode;
+    state.review = null;
+    if (state.headers.length) regroup();
+    else renderGroups();
+  };
+}
 
 api.runtime.onMessage.addListener((m) => {
   if (m?.type === "refresh") loadSelection();

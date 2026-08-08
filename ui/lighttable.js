@@ -3,6 +3,12 @@
 // Gestaltungsregel: Die lesbare E-Mail steht im Mittelpunkt. Alles andere ist
 // zugeklappt, bis es gebraucht wird. Oben nur Datum und Betreff — ein Klick
 // auf ein Datum schaltet die GANZE Ansicht auf diese Fassung um.
+//
+// Zwei Betriebsarten:
+//  • Durchgang (`review`): Man geht Gruppe für Gruppe durch und MERKT NUR VOR
+//    — zusammenfassen, löschen, später prüfen, weiter. Nichts wird verändert.
+//  • Einzelfall (ohne `review`): der frühere Modus mit „Neue Nachricht
+//    erzeugen" direkt aus dem Leuchttisch.
 
 import { collectCandidates, pickDefaults, overlayLines } from "../lib/candidates.js";
 import { assembleMessage } from "../lib/assemble.js";
@@ -28,6 +34,8 @@ import {
   dataUrlToBytes,
 } from "../lib/inlineparts.js";
 import { checkAttachments } from "../lib/attachments.js";
+import { buildRebuild } from "../lib/rebuild.js";
+import { MARKS } from "../lib/review.js";
 
 const el = (tag, cls, text) => {
   const n = document.createElement(tag);
@@ -190,7 +198,8 @@ export async function openLightTable(ids, opts = {}) {
       el(
         "span",
         "lt-sub",
-        `${copies.length} Fassungen · ${cands.attachments.length} Anhänge · ` +
+        (opts.review ? `Gruppe ${opts.review.index + 1}/${opts.review.total} · ` : "") +
+          `${copies.length} Fassungen · ${cands.attachments.length} Anhänge · ` +
           `${cands.bodies.length} Textvarianten`
       )
     );
@@ -204,8 +213,8 @@ export async function openLightTable(ids, opts = {}) {
       "Unten entsteht daraus eine neue Nachricht; die Ausgangs-Mails bleiben " +
       "erhalten, solange der Haken gesetzt ist.";
     help.onclick = () => helpBox.classList.toggle("hidden");
-    const x = el("button", "ghost", "Schließen");
-    x.onclick = close;
+    const x = el("button", "ghost", opts.review ? "Durchgang beenden" : "Schließen");
+    x.onclick = () => (opts.review ? opts.review.onFinish() : close());
     head.append(title, help, x);
     overlay.append(head, helpBox);
 
@@ -890,6 +899,7 @@ export async function openLightTable(ids, opts = {}) {
   }
 
   function actionBar() {
+    if (opts.review) return reviewBar();
     const bar = el("div", "lt-actionbar");
     const keep = document.createElement("label");
     keep.className = "muted";
@@ -1002,6 +1012,50 @@ export async function openLightTable(ids, opts = {}) {
     return bar;
   }
 
+  /**
+   * Fußleiste im Durchgang: vier Möglichkeiten, mehr nicht. Jede merkt nur
+   * vor und geht weiter — verändert wird erst in der Zusammenfassung.
+   */
+  function reviewBar() {
+    const r = opts.review;
+    const bar = el("div", "lt-actionbar review");
+
+    const pos = el(
+      "div",
+      "lt-progress",
+      `Gruppe ${r.index + 1} von ${r.total}` + (r.currentMark && r.currentMark !== MARKS.none
+        ? ` · vorgemerkt: ${
+            { merge: "Zusammenfassen", delete: "Löschen", later: "Später" }[r.currentMark]
+          }`
+        : "")
+    );
+
+    const mk = (label, kind, cls, title) => {
+      const b = el("button", cls, label);
+      b.title = title;
+      b.onclick = () => r.onDecide(kind);
+      if (r.currentMark === kind) b.classList.add("aktiv");
+      return b;
+    };
+
+    bar.append(
+      pos,
+      mk("Zusammenfassen vormerken", MARKS.merge, "primary",
+        "Aus den Kopien wird später EINE Nachricht. Jetzt passiert nichts."),
+      mk("Löschen vormerken", MARKS.delete, "danger",
+        "Alle Kopien bis auf die beste kommen später in den Papierkorb."),
+      mk("Später nochmal prüfen", MARKS.later, "ghost",
+        "Bleibt vorgemerkt und taucht am Ende in einer eigenen Gruppe auf."),
+      mk("Weiter →", null, "ghost", "Ohne Vormerkung zur nächsten Gruppe.")
+    );
+
+    const stop = el("button", "ghost", "Durchgang beenden");
+    stop.onclick = () => r.onFinish();
+    bar.append(stop);
+    return bar;
+  }
+
   render();
   onStatus(`Leuchttisch offen · ${copies.length} Fassungen`);
+  return { close, rebuild: () => buildRebuild(copies, { profiles, keepHtml: state.keepHtml, selection: sel }) };
 }

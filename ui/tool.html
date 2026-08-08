@@ -26,24 +26,16 @@
         <select id="folderSel" title="Ganzen Ordner laden und auf Duplikate prüfen">
           <option value="">Ordner wählen …</option>
         </select>
-        <select id="modeSel" title="Wie streng gilt eine Mail als Duplikat?">
-          <option value="strict">streng: gleiche Message-ID</option>
-          <option value="normal" selected>normal: ID oder Absender+Betreff+Minute</option>
-          <option value="lose">locker: Absender+Betreff+Tag</option>
-        </select>
+        <span id="modeHint" class="muted"></span>
         <button id="btnLightTable" class="ghost">Leuchttisch für geladene Mails</button>
-        <button id="btnReload" class="ghost">Neu prüfen</button>
       </div>
 
       <div id="dupes" class="card hidden">
         <section class="block" style="border-top: 0; margin-top: 0; padding-top: 0">
-          <h3>Duplikate</h3>
+          <h3>Übersicht</h3>
           <div id="dupeSummary" class="muted"></div>
           <div class="bar" style="margin-top: 10px">
-            <button id="btnMergeAll" class="primary">Gruppen zusammenführen …</button>
-            <button id="btnDeleteAll" class="danger" disabled>Alle Duplikate in den Papierkorb</button>
-            <button id="btnKeepers" class="ghost" disabled>Behaltene Kopien prüfen</button>
-            <button id="btnFixAll" class="primary" disabled>Keine automatischen Korrekturen offen</button>
+            <button id="btnReview" class="primary" disabled>Leuchttisch</button>
             <label class="muted" style="display: flex; align-items: center; gap: 6px">
               <input type="checkbox" id="permDelete" style="min-height: 0" />
               endgültig löschen statt Papierkorb
@@ -51,6 +43,19 @@
           </div>
           <div id="dupesBody" style="margin-top: 10px"></div>
         </section>
+      </div>
+
+      <div id="modeMenu" class="ctxmenu hidden">
+        <div class="ctxtitle">Maßstab für Dubletten</div>
+        <button data-mode="strict">
+          <b>streng</b><span>gleiche Message-ID — echte Kopien</span>
+        </button>
+        <button data-mode="normal">
+          <b>normal</b><span>ID, sonst Absender + Betreff + Minute</span>
+        </button>
+        <button data-mode="lose">
+          <b>locker</b><span>Absender + Betreff + Tag</span>
+        </button>
       </div>
 
       <details id="profileBox" class="card">

@@ -755,3 +755,71 @@ details > summary {
   color: var(--neg);
   border-style: dashed;
 }
+
+/* Kontextmenü für den Maßstab */
+.ctxmenu {
+  position: fixed;
+  z-index: 70;
+  min-width: 260px;
+  background: var(--surf);
+  border: 1px solid var(--bds);
+  border-radius: 12px;
+  padding: 6px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+.ctxtitle {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--lbl);
+  padding: 6px 8px;
+}
+.ctxmenu button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  padding: 8px 10px;
+  min-height: 0;
+}
+.ctxmenu button:hover {
+  background: var(--surf2);
+}
+.ctxmenu button.aktiv {
+  background: rgba(170, 204, 0, 0.12);
+}
+.ctxmenu button b {
+  display: block;
+  font-synthesis: weight;
+}
+.ctxmenu button.aktiv b {
+  color: var(--pos);
+}
+.ctxmenu button span {
+  display: block;
+  font-size: 11.5px;
+  color: var(--lbl);
+}
+#modeHint {
+  cursor: pointer;
+  padding: 9px 12px;
+  border: 1px dashed var(--bds);
+  border-radius: 10px;
+}
+
+/* Fußleiste im Durchgang */
+.lt-actionbar.review {
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+.lt-progress {
+  font-size: 13px;
+  color: var(--txt2);
+  margin-right: auto;
+}
+.lt-actionbar button.aktiv {
+  outline: 2px solid var(--pos);
+  outline-offset: 1px;
+}

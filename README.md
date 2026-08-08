@@ -261,38 +261,48 @@ Voraussetzung: **Thunderbird 128+** (wegen `messages.import`).
 3. Pro Nachricht: Befunde lesen, Vorschlag antippen oder Felder von Hand
    ändern, **Empfänger speichern**.
 
-### Ganzen Ordner deduplizieren (Massenlauf)
+### Der Durchgang: einmal ansehen, vormerken, am Ende entscheiden
 
-Oben **Ordner wählen** — der Ordner wird vollständig eingelesen (nur
-Kopfdaten, seitenweise; das verkraftet auch zehntausende Nachrichten) und in
-**Duplikat-Gruppen** einsortiert. Der Maßstab daneben ist einstellbar:
+Der Ablauf in vier Schritten — dazwischen muss man nirgends hin und zurück:
 
-| Modus | Gruppiert nach |
-|---|---|
-| **streng** | gleiche `Message-ID` — echte Kopien derselben Nachricht |
-| **normal** (Vorgabe) | `Message-ID`, sonst Absender + Betreff + Minute |
-| **locker** | Absender + Betreff + Tag — findet auch neu zugestellte Kopien |
+1. **Ordner wählen.** Er wird vollständig eingelesen (nur Kopfdaten,
+   seitenweise) und nach Dubletten gruppiert.
+2. **Maßstab prüfen.** Rechtsklick auf die Übersicht (oder Klick auf die
+   Maßstab-Anzeige) öffnet das Kontextmenü mit **streng · normal · locker**.
+   Die Gruppen bilden sich sofort neu.
 
-In jeder Gruppe ist die **beste Kopie vorausgewählt**: Es gewinnt die mit der
-vollständigsten Empfänger-Angabe (Name *und* Adresse, passend zum Profil).
-Ein *falscher* Name zählt dabei schlechter als ein fehlender — er sieht
-richtig aus und würde beim Aufräumen unbemerkt durchrutschen. Danach zählen
-Markierung, Tags und Größe. Die Vorauswahl lässt sich pro Gruppe per Radio-
-Knopf ändern.
+   | Modus | Gruppiert nach |
+   |---|---|
+   | **streng** | gleiche `Message-ID` — echte Kopien derselben Nachricht |
+   | **normal** (Vorgabe) | `Message-ID`, sonst Absender + Betreff + Minute |
+   | **locker** | Absender + Betreff + Tag — findet auch neu zugestellte Kopien |
 
-Drei Massen-Aktionen:
+3. **Übersicht lesen.** „1.482 Nachrichten · 1.190 eindeutige · 214 Gruppen mit
+   Dubletten (506 Kopien, 292 entfernbar)". Ein einziger Knopf: **Leuchttisch**.
+4. **Durchgang.** Der Leuchttisch zeigt die erste Gruppe. Unten gibt es genau
+   vier Möglichkeiten:
 
-- **Gruppen zusammenführen …** — geht die Gruppen der Reihe nach durch und
-  baut aus jeder eine vollständige Nachricht (Plan je Gruppe bestätigen oder
-  überspringen).
-- **Alle Duplikate in den Papierkorb** — löscht in jeder Gruppe alles außer
-  der behaltenen Kopie (in Blöcken, mit Rückfrage; auf Wunsch endgültig statt
-  Papierkorb).
-- **Behaltene Kopien prüfen** — lädt die Behalten-Kopien (bis 50 auf einmal)
-  mit Text und Anhängen in die Einzelansicht.
-- **Empfänger in N Nachrichten korrigieren** — wendet auf alle geladenen
-  Nachrichten die Profil-Vorschläge an (nur dort, wo es überhaupt etwas zu
-  ändern gibt), mit Rückfrage und Fortschrittsanzeige.
+   - **Zusammenfassen vormerken**
+   - **Löschen vormerken**
+   - **Später nochmal prüfen**
+   - **Weiter →** (ohne Vormerkung)
+
+   Jede Entscheidung springt zur nächsten Gruppe. **Verändert wird dabei
+   nichts** — es entstehen nur Vormerkungen, die auch einen Neustart
+   überleben (`storage.local`).
+
+5. **Abschluss.** Nach der letzten Gruppe (oder mit *Durchgang beenden*) steht
+   die Übersicht wieder da — jetzt nach Vormerkung gruppiert und aufklappbar:
+   *Zusammenfassen (n)*, *Löschen (n)*, *Später prüfen (n)*, *Ohne Vormerkung
+   (n)*. Jede Gruppe lässt sich per „ansehen" nochmal öffnen. Erst die Knöpfe
+   **„n Gruppe(n) jetzt zusammenfassen"** und **„n Gruppe(n) jetzt
+   bereinigen"** führen etwas aus — mit einer Rückfrage, die im Klartext sagt,
+   was passiert. *Später prüfen* und *Ohne Vormerkung* bleiben unberührt.
+
+Zusammengefasst wird dabei über denselben Baustein (`lib/rebuild.js`), den auch
+der Leuchttisch benutzt: gleiche Vorauswahl, gleiche MIME-Struktur, gleiches
+Ergebnis — „im Stapel" kann nichts anderes herauskommen als „von Hand
+bestätigt".
 
 ### Der zuverlässige Weg (statt Kriterien-Raten)
 
@@ -355,7 +365,7 @@ sauberer Empfänger in der anderen), statt „löschen“ lieber
 npm test      # node:test, keine Abhängigkeiten
 ```
 
-131 Tests decken Header-Kodierung, das Byte-genaue Umschreiben der
+139 Tests decken Header-Kodierung, das Byte-genaue Umschreiben der
 Roh-Nachricht, die Empfängerprüfung samt Vorschlägen, die
 Dateinamen-Plausibilität, den Textvergleich sowie Gruppierung und
 Kopie-Bewertung der Duplikatsuche, die MIME-Teil-Umbenennung und den
@@ -382,6 +392,8 @@ Fehler, die den Einzelteil-Tests entgangen sind.
 | `lib/recipients.js` | Profile, Empfängerprüfung, Korrekturvorschläge |
 | `lib/attachments.js` | Anhang- und Dateinamen-Plausibilität |
 | `lib/attachcontent.js` | Inhalts-Hash, Typ-Erkennung aus Bytes, Vorschau-Eignung |
+| `lib/review.js` | Vormerkungen des Durchgangs, Übersichtszahlen, Klartext-Plan |
+| `lib/rebuild.js` | gemeinsamer Neubau für Leuchttisch und Stapel |
 | `lib/dedupe.js` | Duplikat-Gruppen, Inhalts-Prüfsumme, Bewertung „welche Kopie bleibt“ |
 | `lib/mimeparts.js` | MIME-Teile begehen, herausschneiden, Dateinamen setzen |
 | `lib/textclean.js` | Steuer-/Sonderzeichen erkennen und entfernen |
