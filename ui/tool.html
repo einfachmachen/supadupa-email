@@ -30,37 +30,16 @@
         <button id="btnLightTable" class="ghost">Leuchttisch für geladene Mails</button>
       </div>
 
-      <div id="dupes" class="card hidden">
-        <section class="block" style="border-top: 0; margin-top: 0; padding-top: 0">
-          <h3>Übersicht</h3>
-          <div id="dupeSummary" class="muted"></div>
-          <div class="bar" style="margin-top: 10px">
-            <button id="btnReview" class="primary" disabled>Leuchttisch</button>
-            <label class="muted" style="display: flex; align-items: center; gap: 6px">
-              <input type="checkbox" id="permDelete" style="min-height: 0" />
-              endgültig löschen statt Papierkorb
-            </label>
-          </div>
-          <div id="dupesBody" style="margin-top: 10px"></div>
-        </section>
-      </div>
-
-      <div id="modeMenu" class="ctxmenu hidden">
-        <div class="ctxtitle">Maßstab für Dubletten</div>
-        <button data-mode="strict">
-          <b>streng</b><span>gleiche Message-ID — echte Kopien</span>
+      <div class="bar startbar">
+        <button id="btnStart" class="primary big" disabled>
+          Leuchttisch starten
         </button>
-        <button data-mode="normal">
-          <b>normal</b><span>ID, sonst Absender + Betreff + Minute</span>
-        </button>
-        <button data-mode="lose">
-          <b>locker</b><span>Absender + Betreff + Tag</span>
-        </button>
+        <span id="startHint" class="muted">Erst einen Ordner laden.</span>
       </div>
 
       <details id="bookBox" class="card">
         <summary>
-          Adressen in diesem Ordner
+          <span class="step">Schritt 1</span> Adressen in diesem Ordner
           <span id="bookSummary" class="muted"></span>
         </summary>
         <p class="muted">
@@ -83,7 +62,7 @@
       </details>
 
       <details id="profileBox" class="card">
-        <summary>Namen &amp; Adressen (Profile)</summary>
+        <summary><span class="step">Schritt 2</span> Namen &amp; Adressen (Profile)</summary>
         <p class="muted">
           Ein Profil sagt: „Zu dieser Adresse gehört dieser Name.“ Das gilt für
           <b>jede</b> Person, nicht nur für deine eigenen Adressen. Daran misst
@@ -97,6 +76,41 @@
           <button id="btnSaveProfiles" class="primary">Profile speichern</button>
         </div>
       </details>
+
+      <div id="dupes" class="card hidden">
+        <section class="block" style="border-top: 0; margin-top: 0; padding-top: 0">
+          <h3><span class="step">Schritt 3</span> Übersicht</h3>
+          <div id="dupeSummary" class="muted"></div>
+          <div class="bar" style="margin-top: 10px">
+            <label class="muted" style="display: flex; align-items: center; gap: 6px">
+              <input type="checkbox" id="permDelete" style="min-height: 0" />
+              endgültig löschen statt Papierkorb
+            </label>
+          </div>
+          <div id="dupesBody" style="margin-top: 10px"></div>
+        </section>
+      </div>
+
+      <div id="marksBox" class="card hidden">
+        <section class="block" style="border-top: 0; margin-top: 0; padding-top: 0">
+          <h3><span class="step">Schritt 4</span> Vormerkungen</h3>
+          <div id="marksSummary" class="muted"></div>
+          <div id="marksBody" style="margin-top: 10px"></div>
+        </section>
+      </div>
+
+      <div id="modeMenu" class="ctxmenu hidden">
+        <div class="ctxtitle">Maßstab für Dubletten</div>
+        <button data-mode="strict">
+          <b>streng</b><span>gleiche Message-ID — echte Kopien</span>
+        </button>
+        <button data-mode="normal">
+          <b>normal</b><span>ID, sonst Absender + Betreff + Minute</span>
+        </button>
+        <button data-mode="lose">
+          <b>locker</b><span>Absender + Betreff + Tag</span>
+        </button>
+      </div>
 
       <div id="list"></div>
 

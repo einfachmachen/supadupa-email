@@ -27,6 +27,7 @@ import {
   overview,
   groupByMark,
   markCounts,
+  pendingGroups,
   describePlan,
   MARKS,
   MARK_LABELS,
@@ -121,6 +122,8 @@ async function loadProfiles() {
 async function saveProfiles() {
   readProfileInputs();
   await api.storage.local.set({ profiles: state.profiles });
+  // Schritt 2 ist erledigt — zuklappen, damit die Übersicht den Platz bekommt.
+  $("#profileBox").open = false;
   toast("Profile gespeichert.");
   analyzeAll();
 }
@@ -349,6 +352,8 @@ function buildBook() {
     state.bookFix.set(e.email, known?.preferredName || e.preferred || "");
     state.bookFixEmail.set(e.email, known?.preferredEmail || e.emailSuggestion || "");
   }
+  // Schritt 1 steht am Anfang: aufgeklappt, solange es dort etwas zu tun gibt.
+  $("#bookBox").open = state.book.some((e) => e.needsWork);
   renderBook();
 }
 
@@ -487,9 +492,13 @@ async function saveBook() {
   await api.storage.local.set({ profiles });
   renderProfiles();
   renderBook();
+  // Schritt 1 ist erledigt: zuklappen und Schritt 2 aufklappen, damit man
+  // sieht, was daraus geworden ist.
+  $("#bookBox").open = false;
+  $("#profileBox").open = true;
   if (state.headers.length) regroup();
   analyzeAll();
-  toast(`${added} Profil(e) neu, ${updated} aktualisiert — gilt ab sofort überall.`);
+  toast(`${added} Profil(e) neu, ${updated} aktualisiert — jetzt Schritt 2 prüfen.`);
 }
 
 /**
@@ -502,6 +511,8 @@ function renderGroups() {
   body.textContent = "";
   if (!state.headers.length) {
     box.classList.add("hidden");
+    renderMarksBox();
+    updateStart();
     return;
   }
   box.classList.remove("hidden");
@@ -519,25 +530,67 @@ function renderGroups() {
     body.append(
       el("div", "muted", "Keine Dubletten nach diesem Maßstab. Ein Klick auf den Maßstab wechselt ihn.")
     );
-    $("#btnReview").disabled = true;
+    renderMarksBox();
+    updateStart();
     return;
   }
-  $("#btnReview").disabled = false;
 
-  // Läuft schon ein Durchgang? Dann zeigt die Übersicht die Vormerkungen.
-  if (state.review) {
-    body.append(renderMarks());
+  // In der Übersicht steht nur, was noch zu tun ist: unentschiedene Gruppen und
+  // die, die du auf „später“ gelegt hast. Zusammenfassen/Löschen wandert nach
+  // unten in die Vormerkungen.
+  const open = openGroups();
+  if (!open.length) {
+    body.append(el("div", "muted", "Alle Gruppen sind vorgemerkt — weiter bei den Vormerkungen."));
+  } else {
+    const laterCount = open.filter(
+      (g) => state.review && markOf(state.review, g.key) === MARKS.later
+    ).length;
+    body.append(
+      el(
+        "div",
+        "muted",
+        `${open.length} Gruppe(n) offen` +
+          (laterCount ? ` (davon ${laterCount} auf „später nochmal prüfen“)` : "") +
+          " — der Leuchttisch führt dich hindurch. Dort wird nur vorgemerkt."
+      )
+    );
+    body.append(renderGroupList(open.slice(0, 30), open.length));
+  }
+  renderMarksBox();
+  updateStart();
+}
+
+/** Gruppen, die noch in die Übersicht gehören: offen oder „später“. */
+function openGroups() {
+  return state.review ? pendingGroups(state.review) : state.groups;
+}
+
+/** Der Startknopf ganz oben — ein Weg hinein, mit klarer Beschriftung. */
+function updateStart() {
+  const btn = $("#btnStart");
+  const hint = $("#startHint");
+  const open = state.groups.length ? openGroups() : [];
+  btn.disabled = !open.length;
+  if (!state.headers.length) {
+    btn.textContent = "Leuchttisch starten";
+    hint.textContent = "Erst einen Ordner laden.";
     return;
   }
-  body.append(
-    el(
-      "div",
-      "muted",
-      "Der Leuchttisch führt dich Gruppe für Gruppe durch. Dort merkst du nur " +
-        "vor — verändert wird erst hier, wenn du fertig bist."
-    )
-  );
-  body.append(renderGroupList(state.groups.slice(0, 30), state.groups.length));
+  if (!state.groups.length) {
+    btn.textContent = "Leuchttisch starten";
+    hint.textContent = "Keine Dubletten nach diesem Maßstab.";
+    return;
+  }
+  if (!open.length) {
+    btn.textContent = "Leuchttisch starten";
+    hint.textContent = "Alle Gruppen sind vorgemerkt — weiter bei Schritt 4.";
+    return;
+  }
+  const started = state.review && markCounts(state.review).decided > 0;
+  btn.textContent = started
+    ? `Weiter im Leuchttisch (${open.length} offen)`
+    : `Leuchttisch starten (${open.length} Gruppen)`;
+  hint.textContent = "Öffnet die erste offene Dublette.";
 }
 
 /** Knappe Liste der Gruppen (Betreff, Datum, Anzahl Kopien). */
@@ -567,26 +620,31 @@ function renderGroupList(groups, total) {
   return wrap;
 }
 
-/** Nach dem Durchgang: Vormerkungen gruppiert, mit den Abschluss-Knöpfen. */
-function renderMarks() {
-  const wrap = el("div");
-  const by = groupByMark(state.review);
-  const counts = markCounts(state.review);
+/**
+ * Schritt 4: die Vormerkungen, getrennt nach zusammenfassen und löschen —
+ * mit den Knöpfen, die als Einzige wirklich etwas verändern.
+ */
+function renderMarksBox() {
+  const box = $("#marksBox");
+  const body = $("#marksBody");
+  body.textContent = "";
+  const by = state.review ? groupByMark(state.review) : null;
+  if (!by || (!by.merge.length && !by.delete.length)) {
+    box.classList.add("hidden");
+    return;
+  }
+  box.classList.remove("hidden");
 
-  wrap.append(
-    el(
-      "div",
-      "muted",
-      `${counts.decided} von ${counts.total} Gruppen entschieden. ` +
-        "Nichts davon ist bisher ausgeführt."
-    )
-  );
+  const counts = markCounts(state.review);
+  $("#marksSummary").textContent =
+    `${counts.merge} zum Zusammenfassen · ${counts.delete} zum Löschen · ` +
+    `${counts.later} auf später · ${counts.none} noch offen. Nichts davon ist bisher ausgeführt.`;
 
   const section = (kind, list, extra) => {
     if (!list.length) return;
     const fold = document.createElement("details");
     fold.className = `lt-fold${kind === MARKS.delete ? " warn" : ""}`;
-    fold.open = kind !== MARKS.none;
+    fold.open = true;
     const sum = document.createElement("summary");
     sum.append(el("span", "t", `${MARK_LABELS[kind]} (${list.length})`));
     const copies = list.reduce((n, g) => n + g.messages.length, 0);
@@ -594,7 +652,7 @@ function renderMarks() {
     fold.append(sum);
     if (extra) fold.append(extra);
     fold.append(renderGroupList(list, list.length));
-    wrap.append(fold);
+    body.append(fold);
   };
 
   const mergeBar = el("div", "bar");
@@ -609,15 +667,8 @@ function renderMarks() {
 
   section(MARKS.merge, by.merge, by.merge.length ? mergeBar : null);
   section(MARKS.delete, by.delete, by.delete.length ? delBar : null);
-  section(MARKS.later, by.later, null);
-  section(MARKS.none, by.none, null);
 
   const bar = el("div", "bar");
-  if (counts.none) {
-    const cont = el("button", "primary", "Durchgang fortsetzen");
-    cont.onclick = () => startReview(nextUndecided());
-    bar.append(cont);
-  }
   const reset = el("button", "ghost", "Vormerkungen verwerfen");
   reset.onclick = () => {
     if (!window.confirm("Alle Vormerkungen verwerfen?")) return;
@@ -625,14 +676,13 @@ function renderMarks() {
     renderGroups();
   };
   bar.append(reset);
-  wrap.append(bar);
-  return wrap;
+  body.append(bar);
 }
 
+/** Nächste Gruppe, die noch Arbeit macht — „später“ zählt dazu. */
 function nextUndecided() {
-  const i = state.review.groups.findIndex(
-    (g) => markOf(state.review, g.key) === MARKS.none
-  );
+  const first = openGroups()[0];
+  const i = first ? state.groups.indexOf(first) : -1;
   return i < 0 ? 0 : i;
 }
 
@@ -1151,7 +1201,7 @@ $("#btnLightTable").onclick = () => {
   }
   openTableFor(state.msgs.map((m) => m.id));
 };
-$("#btnReview").onclick = () => startReview(state.review ? nextUndecided() : 0);
+$("#btnStart").onclick = () => startReview(state.review ? nextUndecided() : 0);
 $("#folderSel").onchange = async (e) => {
   const opt = e.target.selectedOptions[0];
   if (!opt?._folder) return;

@@ -38,7 +38,7 @@ Der jeweils aktuelle Stand liegt versioniert im Ordner `releases/`; jede
 ausgelieferte Fassung bekommt eine eigene Nummer, damit klar ist, welcher Stand
 gerade installiert ist:
 
-[releases/supadupa-mailcheck-1.0.11.xpi](releases/supadupa-mailcheck-1.0.11.xpi)
+[releases/supadupa-mailcheck-1.0.12.xpi](releases/supadupa-mailcheck-1.0.12.xpi)
 
 **Adressen in diesem Ordner** (Klappe über den Profilen) ist der schnelle Weg
 dorthin: Nach dem Einlesen stehen dort alle Namen und Adressen aus Absender-,
@@ -305,7 +305,15 @@ Voraussetzung: **Thunderbird 128+** (wegen `messages.import`).
 
 ### Der Durchgang: einmal ansehen, vormerken, am Ende entscheiden
 
-Der Ablauf in vier Schritten — dazwischen muss man nirgends hin und zurück:
+Die Seite ist von oben nach unten in der Reihenfolge aufgebaut, in der man sie
+abarbeitet: ganz oben der **Startknopf**, der den Leuchttisch bei der ersten
+offenen Dublette öffnet, darunter **Schritt 1: Adressen in diesem Ordner**,
+**Schritt 2: Namen & Adressen (Profile)**, **Schritt 3: Übersicht** und
+**Schritt 4: Vormerkungen**. Erst die Adressen klären, dann die Profile prüfen,
+dann die Dubletten ansehen — Schritt 1 und 2 klappen sich nach dem Speichern
+von selbst zu, damit die Übersicht den ganzen Platz bekommt.
+
+Der Ablauf im Einzelnen:
 
 1. **Ordner wählen.** Er wird vollständig eingelesen (nur Kopfdaten,
    seitenweise) und nach Dubletten gruppiert.
@@ -319,8 +327,10 @@ Der Ablauf in vier Schritten — dazwischen muss man nirgends hin und zurück:
    | **normal** (Vorgabe) | `Message-ID`, sonst Absender + Betreff + Minute |
    | **locker** | Absender + Betreff + Tag — findet auch neu zugestellte Kopien |
 
-3. **Übersicht lesen.** „1.482 Nachrichten · 1.190 eindeutige · 214 Gruppen mit
-   Dubletten (506 Kopien, 292 entfernbar)". Ein einziger Knopf: **Leuchttisch**.
+3. **Übersicht lesen (Schritt 3).** „1.482 Nachrichten · 1.190 eindeutige · 214
+   Gruppen mit Dubletten (506 Kopien, 292 entfernbar)". Aufgeführt sind hier nur
+   die Gruppen, die noch Arbeit machen: unentschiedene und die, die auf *später
+   nochmal prüfen* liegen. Gestartet wird über den Knopf ganz oben.
 4. **Durchgang.** Der Leuchttisch zeigt die erste Gruppe. Unten gibt es genau
    vier Möglichkeiten:
 
@@ -333,10 +343,10 @@ Der Ablauf in vier Schritten — dazwischen muss man nirgends hin und zurück:
    nichts** — es entstehen nur Vormerkungen, die auch einen Neustart
    überleben (`storage.local`).
 
-5. **Abschluss.** Nach der letzten Gruppe (oder mit *Durchgang beenden*) steht
-   die Übersicht wieder da — jetzt nach Vormerkung gruppiert und aufklappbar:
-   *Zusammenfassen (n)*, *Löschen (n)*, *Später prüfen (n)*, *Ohne Vormerkung
-   (n)*. Jede Gruppe lässt sich per „ansehen" nochmal öffnen. Erst die Knöpfe
+5. **Abschluss (Schritt 4).** Vorgemerkte Gruppen verschwinden aus der
+   Übersicht und sammeln sich unten unter **Vormerkungen**, getrennt nach
+   *Zusammenfassen (n)* und *Löschen (n)*. Jede Gruppe lässt sich per „ansehen"
+   nochmal öffnen. Erst die Knöpfe
    **„n Gruppe(n) jetzt zusammenfassen"** und **„n Gruppe(n) jetzt
    bereinigen"** führen etwas aus — mit einer Rückfrage, die im Klartext sagt,
    was passiert. *Später prüfen* und *Ohne Vormerkung* bleiben unberührt.

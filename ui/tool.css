@@ -891,3 +891,28 @@ details > summary {
   font-size: 12px;
   margin-left: 8px;
 }
+
+/* Schritt-Marken und der Startknopf ganz oben ------------------------------ */
+.step {
+  display: inline-block;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--lbl);
+  border: 1px solid var(--bd);
+  border-radius: 999px;
+  padding: 2px 8px;
+  margin-right: 8px;
+  vertical-align: middle;
+}
+.startbar {
+  align-items: center;
+  margin-bottom: 14px;
+}
+button.big {
+  font-size: 15px;
+  padding: 12px 22px;
+}
+button.big:disabled {
+  opacity: 0.45;
+}

@@ -9,6 +9,7 @@ import {
   overview,
   groupByMark,
   markCounts,
+  pendingGroups,
   describePlan,
   MARKS,
 } from "../lib/review.js";
@@ -138,4 +139,18 @@ test("ohne Formatierung wandern die eingebundenen Bilder als Anhang mit", async 
   } finally {
     restore();
   }
+});
+
+test("Übersicht behält offene und „später“-Gruppen, Vormerkungen wandern weg", () => {
+  const groups = [g("a"), g("b"), g("c"), g("d")];
+  let r = createReview(groups);
+  r = setMark(r, "a", MARKS.merge);
+  r = setMark(r, "b", MARKS.delete);
+  r = setMark(r, "c", MARKS.later);
+  assert.deepEqual(
+    pendingGroups(r).map((x) => x.key),
+    ["c", "d"]
+  );
+  // Ohne Entscheidung steht alles noch oben
+  assert.equal(pendingGroups(createReview(groups)).length, 4);
 });
