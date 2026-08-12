@@ -7,7 +7,10 @@ import {
   stringToBytes,
   decodeLatin1,
   foldHeader,
+  unwrapNestedMessage,
 } from "../lib/rawmail.js";
+import { readFileSync } from "node:fs";
+import { listParts, extractPart, decodeBody } from "../lib/mimeparts.js";
 
 const CRLF = "\r\n";
 const SAMPLE =
@@ -75,4 +78,42 @@ test("Nicht-ASCII-Bytes im Körper überleben unverändert", () => {
   ]);
   const out = setHeader(bytes, "To", "b@x.de");
   assert.deepEqual([...out.slice(-5)], [0xc3, 0xa4, 0xff, 0x00, 0x41]);
+});
+
+test("eine als Text verpackte Nachricht wird ausgepackt", () => {
+  // Manche Archivierer legen die ganze MIME-Nachricht als Base64-Text in eine
+  // neue Nachricht. Ohne Auspacken sieht man nur Trennmarken und Rohtext —
+  // HTML-Fassung und Anhänge bleiben unsichtbar.
+  const raw = readFileSync(new URL("./fixtures/wrapped-message.eml", import.meta.url));
+  const bytes = new Uint8Array(raw);
+
+  const vorher = listParts(bytes);
+  assert.equal(vorher.length, 1, "verpackt sieht es aus wie ein einziger Textteil");
+
+  const { bytes: out, unwrapped } = unwrapNestedMessage(bytes);
+  assert.ok(unwrapped);
+  const head = splitMessage(out).headerText;
+  // Die äußeren Kopfzeilen bleiben erhalten — sonst verlöre die Nachricht
+  // ihre Identität.
+  assert.equal(getHeader(head, "Message-ID"), "<wrapped-1@example.org>");
+  assert.match(getHeader(head, "To"), /anna@example\.org/);
+  assert.match(getHeader(head, "Content-Type"), /multipart\/alternative/);
+
+  const parts = listParts(out);
+  assert.deepEqual(
+    parts.map((p) => p.contentType),
+    ["multipart/alternative", "text/plain", "text/html"]
+  );
+  const html = parts.find((p) => p.contentType === "text/html");
+  const text = new TextDecoder().decode(decodeBody(extractPart(out, html)));
+  assert.match(text, /<h1>Bestellbestätigung<\/h1>/);
+});
+
+test("normale Nachrichten werden nicht angetastet", () => {
+  const bytes = stringToBytes(
+    "Subject: Test\r\nContent-Type: text/plain\r\n\r\nContent-Type: das ist nur Text.\r\n"
+  );
+  const res = unwrapNestedMessage(bytes);
+  assert.equal(res.unwrapped, false);
+  assert.equal(res.bytes, bytes);
 });

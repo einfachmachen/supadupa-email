@@ -38,7 +38,7 @@ Der jeweils aktuelle Stand liegt versioniert im Ordner `releases/`; jede
 ausgelieferte Fassung bekommt eine eigene Nummer, damit klar ist, welcher Stand
 gerade installiert ist:
 
-[releases/supadupa-mailcheck-1.0.17.xpi](releases/supadupa-mailcheck-1.0.17.xpi)
+[releases/supadupa-mailcheck-1.0.18.xpi](releases/supadupa-mailcheck-1.0.18.xpi)
 
 **Adressen in diesem Ordner** (Klappe über den Profilen) ist der schnelle Weg
 dorthin: Nach dem Einlesen stehen dort alle Namen und Adressen aus Absender-,
@@ -165,6 +165,24 @@ welcher Anhang wird wie umbenannt) zum Bestätigen oder Überspringen.
 > gebaut werden, und ein falsch zusammengesetztes Multipart ist schlimmer als
 > eine Kopie zu viel. Der Plan nennt in dem Fall die Grundlage mit ihrer
 > Anhangszahl, sodass du es siehst.
+
+### 4b. Verpackte Nachrichten auspacken
+
+Manche Archivierungs- und Konvertierungswerkzeuge legen eine **vollständige
+MIME-Nachricht als Text in eine neue Nachricht**: außen steht dann
+`Content-Type: text/plain` mit Base64, und erst der dekodierte Rumpf beginnt
+mit `Content-type: multipart/alternative; boundary=…`. Thunderbird nimmt den
+Umschlag beim Wort und zeigt den Rohtext samt Trennmarken und
+Quoted-Printable-Resten (`=C3=A4`) — die HTML-Fassung und die Anhänge stecken
+darin, sind aber unsichtbar.
+
+`unwrapNestedMessage()` erkennt das (äußerer Typ **nicht** mehrteilig, innerer
+Rumpf beginnt mit einer `multipart/…`-Kopfzeile samt `boundary`) und packt
+aus: Die äußeren Kopfzeilen — Datum, Betreff, Absender, Empfänger,
+Message-ID — bleiben erhalten, die Inhalts-Kopfzeilen kommen aus der inneren
+Nachricht. Passt das Muster nicht, bleibt alles unverändert. Der Leuchttisch
+weist auf ausgepackte Nachrichten hin, damit nichts stillschweigend anders
+aussieht als im Original.
 
 ### 5. Leuchttisch: Bestandteile auswählen, neue Mail bauen
 

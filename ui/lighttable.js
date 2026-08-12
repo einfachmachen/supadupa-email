@@ -580,6 +580,16 @@ export async function openLightTable(ids, opts = {}) {
 
     const note = el("div", "lt-legend");
     note.append(el("span", null, `Fassung vom ${fmtDate(src.date)}`));
+    if (src.unwrapped) {
+      // Ehrlich sagen, dass hier mehr passiert ist als nur Anzeigen.
+      const u = el(
+        "span",
+        null,
+        "war als Text verpackt — ausgepackt gelesen (HTML und Anhänge daraus)"
+      );
+      u.style.color = "var(--gold)";
+      note.append(u);
+    }
     if (built.historyBlocks) {
       note.append(el("span", null, `${built.historyBlocks} zitierte Vorgänger (im Dokument aufklappbar)`));
     }

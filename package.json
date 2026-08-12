@@ -1,6 +1,6 @@
 {
   "name": "supadupa-mailcheck",
-  "version": "1.0.17",
+  "version": "1.0.18",
   "description": "Thunderbird-Erweiterung: E-Mail-Inhalt, Anhänge und Empfänger prüfen und korrigieren",
   "type": "module",
   "private": true,
