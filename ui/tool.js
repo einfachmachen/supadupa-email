@@ -117,6 +117,80 @@ function bodyText(msg) {
   return msg.body.plain?.trim() ? msg.body.plain : htmlToText(msg.body.html);
 }
 
+// -------------------------------------------------------- Fortschrittsanzeige
+
+/**
+ * Ein Vorgang, der länger dauert, braucht ein Fenster, das zeigt, dass etwas
+ * passiert — sonst hält man die Erweiterung für abgestürzt. Zeigt Balken,
+ * Zähler, den gerade bearbeiteten Betreff, die verstrichene Zeit und eine
+ * Schätzung. Abbrechen wirkt nach der laufenden Gruppe: angefangene Arbeit
+ * wird nie halb liegen gelassen.
+ */
+function openProgress(title, total) {
+  const box = el("div", "progress-overlay");
+  const card = el("div", "progress-card");
+  card.append(el("div", "progress-title", title));
+
+  const bar = el("div", "progress-bar");
+  const fill = el("div", "fill");
+  bar.append(fill);
+  const count = el("div", "progress-count", `0 von ${total}`);
+  const now = el("div", "progress-now", "wird vorbereitet …");
+  const time = el("div", "progress-time", "");
+  const cancel = el("button", "ghost", "Abbrechen");
+
+  const state_ = { cancelled: false, done: 0, start: Date.now() };
+  cancel.onclick = () => {
+    state_.cancelled = true;
+    cancel.disabled = true;
+    cancel.textContent = "wird abgebrochen …";
+  };
+
+  card.append(bar, count, now, time, cancel);
+  box.append(card);
+  document.body.append(box);
+
+  const fmt = (ms) => {
+    const sec = Math.round(ms / 1000);
+    if (sec < 60) return `${sec} s`;
+    return `${Math.floor(sec / 60)} min ${String(sec % 60).padStart(2, "0")} s`;
+  };
+
+  return {
+    get cancelled() {
+      return state_.cancelled;
+    },
+    /** Vor der Arbeit an Nummer i (0-basiert) aufrufen. */
+    async step(index, label) {
+      state_.done = index;
+      fill.style.width = `${Math.round((index / total) * 100)}%`;
+      count.textContent = `${index} von ${total}`;
+      now.textContent = label || "";
+      const passed = Date.now() - state_.start;
+      if (index > 0) {
+        const left = (passed / index) * (total - index);
+        time.textContent = `${fmt(passed)} gelaufen · noch etwa ${fmt(left)}`;
+      } else {
+        time.textContent = "";
+      }
+      // Dem Browser Gelegenheit geben, das auch zu zeichnen.
+      await new Promise((r) => setTimeout(r, 0));
+    },
+    finish(text) {
+      fill.style.width = "100%";
+      count.textContent = text;
+      now.textContent = "";
+      cancel.textContent = "Schließen";
+      cancel.disabled = false;
+      cancel.onclick = () => box.remove();
+      setTimeout(() => box.remove(), 2500);
+    },
+    close() {
+      box.remove();
+    },
+  };
+}
+
 // ------------------------------------------------------------------- Profile
 
 async function loadProfiles() {
@@ -750,12 +824,20 @@ function renderMarksBox() {
   };
 
   const mergeBar = el("div", "bar");
-  const bMerge = el("button", "primary", `${by.merge.length} Gruppe(n) jetzt zusammenfassen`);
+  const bMerge = el(
+    "button",
+    "primary",
+    `${by.merge.length} ${by.merge.length === 1 ? "Satz" : "Sätze"} jetzt zusammenfassen`
+  );
   bMerge.onclick = () => executeMarks(MARKS.merge);
   mergeBar.append(bMerge);
 
   const delBar = el("div", "bar");
-  const bDel = el("button", "danger", `${by.delete.length} Gruppe(n) jetzt bereinigen`);
+  const bDel = el(
+    "button",
+    "danger",
+    `${by.delete.length} ${by.delete.length === 1 ? "Satz" : "Sätze"} jetzt bereinigen`
+  );
   bDel.onclick = () => executeMarks(MARKS.delete);
   delBar.append(bDel);
 
@@ -872,9 +954,18 @@ async function executeMarks(kind) {
   state.busy = true;
   const done = [];
   const failed = [];
+  const progress = openProgress(
+    kind === MARKS.merge
+      ? "Dubletten-Sätze werden zusammengefasst"
+      : "Überzählige Kopien werden entfernt",
+    list.length
+  );
   try {
     for (let i = 0; i < list.length; i++) {
       const g = list[i];
+      if (progress.cancelled) break;
+      const betreff = decodeHeaderValue(g.messages[0].subject) || "(kein Betreff)";
+      await progress.step(i, `${betreff} · ${g.messages.length} Kopien`);
       setStatus(
         `${kind === MARKS.merge ? "Fasse zusammen" : "Bereinige"} … ${i + 1}/${list.length}`
       );
@@ -893,6 +984,10 @@ async function executeMarks(kind) {
   } finally {
     state.busy = false;
   }
+  progress.finish(
+    `${done.length} von ${list.length} erledigt` +
+      (progress.cancelled ? " — abgebrochen, der Rest bleibt vorgemerkt." : ".")
+  );
 
   // Erledigte Gruppen aus Liste und Vormerkungen nehmen
   const gone = new Set(done.map((g) => g.key));
@@ -908,7 +1003,7 @@ async function executeMarks(kind) {
   toast(
     failed.length
       ? `${done.length} erledigt, ${failed.length} fehlgeschlagen (Details in der Konsole).`
-      : `${done.length} Gruppe(n) erledigt.`,
+      : `${done.length} Dubletten-Satz/-Sätze erledigt.`,
     failed.length > 0
   );
   if (failed.length) console.error("Fehlgeschlagen:", failed);

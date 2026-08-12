@@ -38,7 +38,7 @@ Der jeweils aktuelle Stand liegt versioniert im Ordner `releases/`; jede
 ausgelieferte Fassung bekommt eine eigene Nummer, damit klar ist, welcher Stand
 gerade installiert ist:
 
-[releases/supadupa-mailcheck-1.0.15.xpi](releases/supadupa-mailcheck-1.0.15.xpi)
+[releases/supadupa-mailcheck-1.0.16.xpi](releases/supadupa-mailcheck-1.0.16.xpi)
 
 **Adressen in diesem Ordner** (Klappe über den Profilen) ist der schnelle Weg
 dorthin: Nach dem Einlesen stehen dort alle Namen und Adressen aus Absender-,
@@ -365,9 +365,13 @@ Der Ablauf im Einzelnen:
    Übersicht und sammeln sich unten unter **Vormerkungen**, getrennt nach
    *Zusammenfassen (n)* und *Löschen (n)*. Jede Gruppe lässt sich per „ansehen"
    nochmal öffnen. Erst die Knöpfe
-   **„n Gruppe(n) jetzt zusammenfassen"** und **„n Gruppe(n) jetzt
-   bereinigen"** führen etwas aus — mit einer Rückfrage, die im Klartext sagt,
+   **„n Sätze jetzt zusammenfassen"** und **„n Sätze jetzt bereinigen"** führen etwas aus — mit einer Rückfrage, die im Klartext sagt,
    was passiert. *Später prüfen* und *Ohne Vormerkung* bleiben unberührt.
+   Während der Ausführung liegt ein Fortschrittsfenster über der Seite:
+   Balken, Zähler, der gerade bearbeitete Betreff, verstrichene Zeit und eine
+   Schätzung, wie lange es noch dauert. *Abbrechen* wirkt nach dem laufenden
+   Satz — angefangene Arbeit wird nie halb liegen gelassen, der Rest bleibt
+   vorgemerkt.
 
 Zusammengefasst wird dabei über denselben Baustein (`lib/rebuild.js`), den auch
 der Leuchttisch benutzt: gleiche Vorauswahl, gleiche MIME-Struktur, gleiches
