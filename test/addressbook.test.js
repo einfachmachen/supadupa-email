@@ -151,3 +151,35 @@ test("nach dem Festlegen zeigt der Leuchttisch überall den richtigen Namen", ()
   const check = checkRecipient({ name: "", email: "anna@example.de" }, profiles);
   assert.equal(check.suggestion.name, "Anna Beispiel");
 });
+
+test("Adressen lassen sich auch aus einer geladenen Auswahl sammeln", () => {
+  // So baut die Oberfläche die Kopfdaten, wenn kein Ordner geladen ist,
+  // sondern nur markierte Nachrichten (msg.to/msg.cc sind Roh-Header).
+  const msgs = [
+    {
+      header: { author: "Bernd Muster <b.muster@example.org>", recipients: [], ccList: [] },
+      to: "anna@example.de",
+      cc: "Kanzlei <steuer@kanzlei.de>",
+    },
+    {
+      header: { author: "b.muster@example.org", recipients: [], ccList: [] },
+      to: "Anna Beispiel <anna@example.de>",
+      cc: "",
+    },
+  ];
+  const headers = msgs.map((m) => ({
+    author: m.header.author,
+    recipients: m.to ? [m.to] : m.header.recipients || [],
+    ccList: m.cc ? [m.cc] : m.header.ccList || [],
+  }));
+
+  const book = buildFolderBook(headers);
+  const mails = book.map((e) => e.email).sort();
+  assert.deepEqual(mails, ["anna@example.de", "b.muster@example.org", "steuer@kanzlei.de"]);
+
+  const anna = book.find((e) => e.email === "anna@example.de");
+  assert.equal(anna.count, 2);
+  assert.equal(anna.blank, 1, "einmal nur die nackte Adresse");
+  assert.equal(anna.preferred, "Anna Beispiel");
+  assert.ok(anna.needsWork);
+});

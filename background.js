@@ -2,7 +2,7 @@
 // Nachrichten, damit das Werkzeug-Tab sie beim Öffnen findet.
 
 const TOOL_URL = "ui/tool.html";
-let pending = { ids: [], source: "none" };
+let pending = { ids: [], folder: null, source: "none" };
 
 async function openTool() {
   const url = browser.runtime.getURL(TOOL_URL);
@@ -16,19 +16,33 @@ async function openTool() {
   return browser.tabs.create({ url });
 }
 
-async function selectionFromMailTab() {
+/**
+ * Was im Hauptfenster gerade dran ist: die markierten Nachrichten UND der
+ * angezeigte Ordner. Der Ordner ist wichtig, weil die Erweiterung sonst nicht
+ * weiß, worauf sich „dieser Ordner" bezieht — man musste ihn bisher von Hand
+ * ein zweites Mal auswählen.
+ */
+async function contextFromMailTab() {
   try {
     const [mailTab] = await browser.mailTabs.query({ active: true, currentWindow: true });
-    if (!mailTab) return [];
-    const page = await browser.mailTabs.getSelectedMessages(mailTab.id);
-    return page.messages.map((m) => m.id);
+    if (!mailTab) return { ids: [], folder: null };
+    let ids = [];
+    try {
+      const page = await browser.mailTabs.getSelectedMessages(mailTab.id);
+      ids = (page.messages || []).map((m) => m.id);
+    } catch {
+      ids = [];
+    }
+    const folder = mailTab.displayedFolder || mailTab.folder || null;
+    return { ids, folder };
   } catch {
-    return [];
+    return { ids: [], folder: null };
   }
 }
 
 browser.browserAction.onClicked.addListener(async () => {
-  pending = { ids: await selectionFromMailTab(), source: "selection" };
+  const ctx = await contextFromMailTab();
+  pending = { ...ctx, source: "selection" };
   await openTool();
 });
 
@@ -40,12 +54,13 @@ browser.messageDisplayAction.onClicked.addListener(async (tab) => {
   } catch {
     ids = [];
   }
-  pending = { ids, source: "display" };
+  const ctx = await contextFromMailTab();
+  pending = { ids, folder: ctx.folder, source: "display" };
   await openTool();
 });
 
 browser.runtime.onMessage.addListener((msg) => {
   if (msg?.type === "getPending") return Promise.resolve(pending);
-  if (msg?.type === "getSelection") return selectionFromMailTab().then((ids) => ({ ids }));
+  if (msg?.type === "getSelection") return contextFromMailTab();
   return undefined;
 });

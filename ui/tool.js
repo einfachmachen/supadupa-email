@@ -223,9 +223,16 @@ function parseOne(s) {
 async function loadSelection() {
   const res = await api.runtime.sendMessage({ type: "getSelection" }).catch(() => null);
   let ids = res?.ids || [];
+  let folder = res?.folder || null;
   if (!ids.length) {
     const pending = await api.runtime.sendMessage({ type: "getPending" }).catch(() => null);
     ids = pending?.ids || [];
+    folder = folder || pending?.folder || null;
+  }
+  // Der Ordner zuerst: Er füllt Übersicht und Adressliste, die Auswahl
+  // danach die Einzelansicht.
+  if (folder && (!state.folder || state.folder.path !== folder.path)) {
+    await adoptFolderFromMailTab(folder);
   }
   await loadIds(ids);
 }
@@ -259,6 +266,7 @@ function analyzeAll() {
     });
     msg.text = text;
   }
+  if (!state.headers.length && state.msgs.length) buildBook();
   render();
   const bad = state.msgs.filter((m) => !m.recipients.ok || m.recipients.empty).length;
   setStatus(
@@ -314,7 +322,17 @@ function regroup() {
  * eine Adresse richtig heißt — danach greift es überall.
  */
 function buildBook() {
-  state.book = buildFolderBook(state.headers);
+  // Quelle: die Kopfdaten des Ordners — und wenn keiner geladen ist, die
+  // gerade geladene Auswahl. Sonst stünde die Klappe leer da, obwohl
+  // Nachrichten sichtbar sind.
+  const headers = state.headers.length
+    ? state.headers
+    : state.msgs.map((m) => ({
+        author: m.header.author,
+        recipients: m.to ? [m.to] : m.header.recipients || [],
+        ccList: m.cc ? [m.cc] : m.header.ccList || [],
+      }));
+  state.book = buildFolderBook(headers);
   state.bookFix = new Map();
   for (const e of state.book) {
     // Bereits als Profil festgelegt? Dann gilt das, sonst der Vorschlag.
@@ -326,11 +344,19 @@ function buildBook() {
   renderBook();
 }
 
+/** Woher stammen die Adressen gerade? Das gehört in die Kopfzeile. */
+function bookSource() {
+  if (state.headers.length) return `Ordner (${state.headers.length} Nachrichten)`;
+  if (state.msgs.length) return `geladene Auswahl (${state.msgs.length} Nachrichten)`;
+  return "";
+}
+
 function renderBook() {
   const box = $("#bookList");
   box.textContent = "";
   const sum = summarizeBook(state.book);
-  $("#bookSummary").textContent = sum.text;
+  const src = bookSource();
+  $("#bookSummary").textContent = src ? `${sum.text} · aus ${src}` : sum.text;
   $("#btnBookOnlyWork").textContent = state.bookOnlyWork
     ? `alle ${sum.total} zeigen`
     : "nur uneinheitliche zeigen";
@@ -338,7 +364,13 @@ function renderBook() {
   const shown = state.bookOnlyWork ? state.book.filter((e) => e.needsWork) : state.book;
   if (!shown.length) {
     box.append(
-      el("div", "muted", state.book.length ? "Alle Adressen sind einheitlich." : "Noch kein Ordner geladen.")
+      el(
+        "div",
+        "muted",
+        state.book.length
+          ? "Alle Adressen sind einheitlich."
+          : "Noch nichts geladen — wähle einen Ordner oder lade eine Auswahl."
+      )
     );
     return;
   }
@@ -1121,9 +1153,32 @@ api.runtime.onMessage.addListener((m) => {
   if (m?.type === "refresh") loadSelection();
 });
 
+/**
+ * Wählt den Ordner, der im Hauptfenster gerade offen ist, in der Liste aus
+ * und liest ihn ein. Ohne das musste man ihn ein zweites Mal von Hand wählen,
+ * obwohl er längst markiert war.
+ */
+async function adoptFolderFromMailTab(folder) {
+  if (!folder) return false;
+  const sel = $("#folderSel");
+  const match = [...sel.options].find(
+    (o) =>
+      o._folder &&
+      ((folder.id && o._folder.id === folder.id) ||
+        (o._folder.path === folder.path &&
+          (!folder.accountId || o._folder.accountId === folder.accountId)))
+  );
+  if (!match) return false;
+  sel.value = match.value;
+  await loadFolder(match._folder);
+  return true;
+}
+
 (async function init() {
   await loadProfiles();
   await fillFolders();
   const pending = await api.runtime.sendMessage({ type: "getPending" }).catch(() => null);
-  await loadIds(pending?.ids || []);
+  const adopted = await adoptFolderFromMailTab(pending?.folder);
+  if (pending?.ids?.length) await loadIds(pending.ids);
+  else if (!adopted) setStatus("Wähle einen Ordner oder markiere Nachrichten im Hauptfenster.");
 })();

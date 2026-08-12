@@ -34,7 +34,13 @@ Person — Absender wie Empfänger, nicht nur für die eigenen Adressen.
 
 **Adressen in diesem Ordner** (Klappe über den Profilen) ist der schnelle Weg
 dorthin: Nach dem Einlesen stehen dort alle Namen und Adressen aus Absender-,
-Empfänger- und Kopie-Zeilen des Ordners — je Adresse mit **allen gefundenen
+Empfänger- und Kopie-Zeilen — aus dem geladenen **Ordner**, und wenn keiner
+geladen ist, aus der **markierten Auswahl**. Die Kopfzeile sagt, woher sie
+stammen. Öffnet man die Prüfung mit einem markierten Ordner im Hauptfenster,
+wird dieser Ordner automatisch übernommen; ein zweites Auswählen von Hand
+entfällt.
+
+Je Adresse stehen **alle gefundenen
 Schreibweisen samt Häufigkeit** („Bernd Muster (12)", „Muster, Bernd (3)",
 „ohne Namen (5)") und der Zahl der abweichenden Vorkommen. Ein Feld je
 Adresse, einmal die richtige Schreibweise festlegen (oder einen der Chips
@@ -380,7 +386,7 @@ sauberer Empfänger in der anderen), statt „löschen“ lieber
 npm test      # node:test, keine Abhängigkeiten
 ```
 
-149 Tests decken Header-Kodierung, das Byte-genaue Umschreiben der
+150 Tests decken Header-Kodierung, das Byte-genaue Umschreiben der
 Roh-Nachricht, die Empfängerprüfung samt Vorschlägen, die
 Dateinamen-Plausibilität, den Textvergleich sowie Gruppierung und
 Kopie-Bewertung der Duplikatsuche, die MIME-Teil-Umbenennung und den
