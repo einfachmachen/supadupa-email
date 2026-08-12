@@ -11,6 +11,7 @@ import {
   deriveProfiles,
   profileNames,
   applySuggestions,
+  sameName,
 } from "../lib/recipients.js";
 import {
   groupDuplicates,
@@ -35,6 +36,7 @@ import {
   buildFolderBook,
   mergeIntoProfiles,
   summarizeBook,
+  describeRoles,
 } from "../lib/addressbook.js";
 import { checkAttachments, suggestName } from "../lib/attachments.js";
 import { compareTexts, classify, compareFacts, htmlToText } from "../lib/similarity.js";
@@ -65,7 +67,8 @@ const state = {
   review: null, // laufender Durchgang: nur Vormerkungen, keine Änderungen
   table: null, // offener Leuchttisch
   book: [], // Adressen des Ordners (Namen-Varianten je Adresse)
-  bookFix: new Map(), // Adresse → festgelegte Schreibweise
+  bookFix: new Map(), // Adresse → festgelegter Name
+  bookFixEmail: new Map(), // Adresse → richtige Adresse (bei Ersatzadressen)
   bookOnlyWork: true, // nur Adressen mit uneinheitlicher Schreibweise zeigen
 };
 
@@ -138,6 +141,8 @@ function readProfileInputs() {
         .value.split(/\s*[;,]\s*/)
         .map((s) => s.trim())
         .filter(Boolean),
+      // Leer lassen heißt: alle Adressen des Profils gelten gleichermaßen.
+      preferredEmail: row.querySelector('[data-k="preferredEmail"]').value.trim(),
     }))
     .filter((p) => p.preferredName || p.emails.length);
 }
@@ -162,7 +167,8 @@ function renderProfiles() {
     row.append(
       field("preferredName", "Bevorzugter Name", p.preferredName),
       field("names", "Weitere Schreibweisen (Komma)", (p.names || []).join(", ")),
-      field("emails", "Adressen (Komma)", (p.emails || []).join(", "))
+      field("emails", "Adressen (Komma)", (p.emails || []).join(", ")),
+      field("preferredEmail", "Richtige Adresse (optional)", p.preferredEmail)
     );
     const del = el("button", "ghost", "×");
     del.title = "Profil entfernen";
@@ -334,12 +340,14 @@ function buildBook() {
       }));
   state.book = buildFolderBook(headers);
   state.bookFix = new Map();
+  state.bookFixEmail = new Map();
   for (const e of state.book) {
     // Bereits als Profil festgelegt? Dann gilt das, sonst der Vorschlag.
     const known = state.profiles.find((p) =>
       (p.emails || []).some((x) => String(x).toLowerCase() === e.email)
     );
     state.bookFix.set(e.email, known?.preferredName || e.preferred || "");
+    state.bookFixEmail.set(e.email, known?.preferredEmail || e.emailSuggestion || "");
   }
   renderBook();
 }
@@ -375,39 +383,82 @@ function renderBook() {
     return;
   }
 
+  // Spaltenüberschrift — sonst ist nicht zu erraten, wozu das Feld rechts da ist.
+  const head = el("div", "book-row head");
+  head.append(el("div", "addr", "So steht es in den Mails"));
+  head.append(el("div", "fix", "So soll es künftig heißen"));
+  box.append(head);
+
   for (const e of shown.slice(0, 300)) {
     const row = el("div", `book-row${e.needsWork ? "" : " ok"}`);
 
     const addr = el("div", "addr");
     addr.append(el("div", "mail", e.email));
+    const rollen = describeRoles(e.roles);
     addr.append(
       el(
         "div",
         "meta",
-        `${e.count}× im Ordner · ${e.roles.join("/")}` +
-          (e.deviations ? ` · ${e.deviations} abweichend` : " · einheitlich")
+        `${e.count}× im Ordner` +
+          (rollen ? ` · ${rollen}` : "") +
+          (e.deviations ? ` · ${e.deviations}× mit abweichendem Namen` : " · Name einheitlich")
       )
     );
+    if (e.replacement) {
+      addr.append(
+        el(
+          "div",
+          "warnline",
+          `Keine echte Adresse, sondern eine ${e.replacementWhy}. ` +
+            (e.emailSuggestion
+              ? `Im Ordner gibt es dazu ${e.emailSuggestion} — rechts als Adresse eingetragen.`
+              : "Trage rechts die richtige Adresse ein.")
+        )
+      );
+    }
     const chips = el("div", "chips");
     for (const n of e.names.slice(0, 6)) {
       const c = el("button", "chip zaehler", `${n.name} (${n.count})`);
-      c.title = "Diese Schreibweise übernehmen";
+      c.title = "Diese Schreibweise als die richtige übernehmen";
       c.onclick = () => {
         state.bookFix.set(e.email, n.name);
-        input.value = n.name;
+        nameInput.value = n.name;
+        markChips();
       };
+      c.dataset.name = n.name;
       chips.append(c);
     }
-    if (e.blank) chips.append(el("span", "chip leer", `ohne Namen (${e.blank})`));
+    if (e.blank) chips.append(el("span", "chip leer", `${e.blank}× ganz ohne Namen`));
     addr.append(chips);
 
     const fix = el("div", "fix");
-    const input = document.createElement("input");
-    input.type = "text";
-    input.value = state.bookFix.get(e.email) || "";
-    input.placeholder = "richtige Schreibweise";
-    input.addEventListener("input", () => state.bookFix.set(e.email, input.value.trim()));
-    fix.append(input);
+    const nameInput = document.createElement("input");
+    nameInput.type = "text";
+    nameInput.value = state.bookFix.get(e.email) || "";
+    nameInput.placeholder = "richtiger Name";
+    nameInput.setAttribute("aria-label", `Richtiger Name für ${e.email}`);
+    const mailInput = document.createElement("input");
+    mailInput.type = "text";
+    mailInput.value = state.bookFixEmail.get(e.email) || "";
+    mailInput.placeholder = "richtige Adresse (nur wenn abweichend)";
+    mailInput.setAttribute("aria-label", `Richtige Adresse statt ${e.email}`);
+
+    const markChips = () => {
+      const cur = state.bookFix.get(e.email) || "";
+      for (const c of chips.querySelectorAll(".chip.zaehler")) {
+        c.classList.toggle("aktiv", !!cur && sameName(c.dataset.name, cur));
+      }
+    };
+    nameInput.addEventListener("input", () => {
+      state.bookFix.set(e.email, nameInput.value.trim());
+      markChips();
+    });
+    mailInput.addEventListener("input", () =>
+      state.bookFixEmail.set(e.email, mailInput.value.trim())
+    );
+    markChips();
+
+    fix.append(nameInput, mailInput);
     row.append(addr, fix);
     box.append(row);
   }
@@ -422,12 +473,13 @@ async function saveBook() {
     .map((e) => ({
       email: e.email,
       preferred: (state.bookFix.get(e.email) || "").trim(),
+      preferredEmail: (state.bookFixEmail.get(e.email) || "").trim(),
       names: e.names.map((n) => n.name),
     }))
-    .filter((d) => d.preferred);
+    .filter((d) => d.preferred || d.preferredEmail);
 
   if (!decisions.length) {
-    toast("Keine Schreibweise festgelegt.", true);
+    toast("Weder Name noch Adresse festgelegt.", true);
     return;
   }
   const { profiles, added, updated } = mergeIntoProfiles(decisions, state.profiles);
@@ -1069,6 +1121,10 @@ $("#btnBookSuggest").onclick = () => {
   for (const e of state.book) {
     if (e.preferred && !state.bookFix.get(e.email)) {
       state.bookFix.set(e.email, e.preferred);
+      n++;
+    }
+    if (e.emailSuggestion && !state.bookFixEmail.get(e.email)) {
+      state.bookFixEmail.set(e.email, e.emailSuggestion);
       n++;
     }
   }

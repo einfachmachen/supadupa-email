@@ -52,6 +52,18 @@ gleich den richtigen Namen, ohne dass dort noch etwas anzupassen wäre.
 - *nur uneinheitliche zeigen* blendet die Adressen aus, bei denen ohnehin
   alles stimmt — das ist die Vorgabe.
 
+**Nicht nur der Name, auch die Adresse.** Unter dem Namensfeld steht ein
+zweites Feld für die *richtige Adresse*. Gebraucht wird es, wenn die in den
+Mails gespeicherte Adresse selbst nicht mehr taugt — der häufigste Fall sind
+Exchange-/Microsoft-365-Ersatzkennungen (`IMCEAEX-…@…prod.outlook.com`,
+`X500:`, `*.onmicrosoft.com`), die Outlook einsetzt, sobald ein Firmenpostfach
+umgezogen oder abgeschaltet ist. Solche Einträge werden als Ersatzadresse
+markiert; steckt der Klarname in der Kennung, sucht die Erweiterung im selben
+Ordner nach einer echten Adresse derselben Person und trägt sie als Vorschlag
+ein. Beim Speichern landen alte und richtige Adresse in **einem** Profil
+(`preferredEmail`), und die Prüfung meldet ab dann `old-address` mit der
+richtigen Adresse als Vorschlag — beim Zusammenfassen wird sie eingesetzt.
+
 Alternativ von Hand pflegen oder aus dem Thunderbird-Adressbuch übernehmen.
 
 **Wie das Speichern technisch funktioniert (wichtig):** Thunderbird bietet

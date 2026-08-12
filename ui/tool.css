@@ -855,12 +855,33 @@ details > summary {
 .book-row .fix input {
   width: 100%;
 }
+.book-row .fix input + input {
+  margin-top: 6px;
+}
+.book-row.head {
+  border-bottom: 1px solid var(--bds);
+  padding-bottom: 4px;
+  font-size: 11.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--lbl);
+}
+.book-row .warnline {
+  font-size: 11.5px;
+  color: var(--gold);
+  margin-top: 4px;
+}
 .book-row .chips {
   margin-top: 5px;
 }
 .book-row .chip.zaehler {
   border-style: solid;
   border-color: var(--bd);
+}
+.book-row .chip.zaehler.aktiv {
+  border-color: var(--pos);
+  color: var(--pos);
+  background: rgba(170, 204, 0, 0.12);
 }
 .book-row .chip.leer {
   color: var(--gold);

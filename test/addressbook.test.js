@@ -8,9 +8,11 @@ import {
   buildFolderBook,
   mergeIntoProfiles,
   summarizeBook,
+  decodeExchangeAddress,
+  describeRoles,
 } from "../lib/addressbook.js";
 import { collectCandidates, pickDefaults } from "../lib/candidates.js";
-import { checkRecipient } from "../lib/recipients.js";
+import { checkRecipient, applySuggestions } from "../lib/recipients.js";
 
 /** Kopfdaten wie aus messages.list. */
 const h = (author, to, cc) => ({
@@ -182,4 +184,63 @@ test("Adressen lassen sich auch aus einer geladenen Auswahl sammeln", () => {
   assert.equal(anna.blank, 1, "einmal nur die nackte Adresse");
   assert.equal(anna.preferred, "Anna Beispiel");
   assert.ok(anna.needsWork);
+});
+
+test("erkennt Exchange-Ersatzadressen und holt den Namen heraus", () => {
+  const imcea =
+    "imceaex-_o=exchangelabs_ou=exchange+20administrative+20group+20+28fydibohf23spdlt+29" +
+    "_cn=recipients_cn=59cb036d3f09480ba685a75b0ed8a6c1-dirk+20trowe@eurprd06.prod.outlook.com";
+  const info = decodeExchangeAddress(imcea);
+  assert.ok(info.replacement);
+  assert.equal(info.nameHint, "dirk trowe");
+
+  // Normale Adressen bleiben unbehelligt
+  assert.equal(decodeExchangeAddress("dirk.trowe@gmx.de").replacement, false);
+});
+
+test("schlägt für eine Ersatzadresse die echte Adresse aus dem Ordner vor", () => {
+  const imcea =
+    "imceaex-_o=exchangelabs_cn=recipients_cn=59cb036d3f09480ba685a75b0ed8a6c1-dirk+20trowe@eurprd06.prod.outlook.com";
+  const book = buildFolderBook([
+    { author: `Dirk Trowe <${imcea}>`, recipients: ["Karl-Peter Merz <kp@web.de>"] },
+    { author: "Dirk Trowe <dirk.trowe@gmx.de>", recipients: ["Karl-Peter Merz <kp@web.de>"] },
+  ]);
+  const ersatz = book.find((e) => e.replacement);
+  assert.ok(ersatz, "Ersatzadresse muss als solche erkannt werden");
+  assert.equal(ersatz.emailSuggestion, "dirk.trowe@gmx.de");
+  assert.ok(ersatz.needsWork, "auch bei einheitlichem Namen bleibt die Adresse zu klären");
+});
+
+test("die richtige Adresse landet als preferredEmail im Profil", () => {
+  const { profiles } = mergeIntoProfiles(
+    [{ email: "alt@firma-ex.prod.outlook.com", preferred: "Dirk Trowe", preferredEmail: "dirk.trowe@gmx.de", names: [] }],
+    []
+  );
+  const p = profiles[0];
+  assert.equal(p.preferredEmail, "dirk.trowe@gmx.de");
+  assert.deepEqual(p.emails, ["dirk.trowe@gmx.de", "alt@firma-ex.prod.outlook.com"]);
+});
+
+test("Mails mit der alten Adresse werden auf die richtige umgeschrieben", () => {
+  const profiles = [
+    {
+      id: "p1",
+      preferredName: "Dirk Trowe",
+      names: [],
+      emails: ["dirk.trowe@gmx.de", "alt@firma-ex.prod.outlook.com"],
+      preferredEmail: "dirk.trowe@gmx.de",
+    },
+  ];
+  const res = checkRecipient({ name: "Dirk Trowe", email: "alt@firma-ex.prod.outlook.com" }, profiles);
+  assert.ok(res.findings.some((f) => f.code === "old-address"));
+  assert.deepEqual(res.suggestion, { name: "Dirk Trowe", email: "dirk.trowe@gmx.de" });
+  assert.equal(
+    applySuggestions("Dirk Trowe <alt@firma-ex.prod.outlook.com>", profiles),
+    "Dirk Trowe <dirk.trowe@gmx.de>"
+  );
+});
+
+test("Rollen werden ausgeschrieben", () => {
+  assert.equal(describeRoles(["from", "to"]), "als Absender und als Empfänger");
+  assert.equal(describeRoles(["cc"]), "in Kopie");
 });
