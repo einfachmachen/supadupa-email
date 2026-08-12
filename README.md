@@ -38,7 +38,7 @@ Der jeweils aktuelle Stand liegt versioniert im Ordner `releases/`; jede
 ausgelieferte Fassung bekommt eine eigene Nummer, damit klar ist, welcher Stand
 gerade installiert ist:
 
-[releases/supadupa-mailcheck-1.0.14.xpi](releases/supadupa-mailcheck-1.0.14.xpi)
+[releases/supadupa-mailcheck-1.0.15.xpi](releases/supadupa-mailcheck-1.0.15.xpi)
 
 **Adressen in diesem Ordner** (Klappe über den Profilen) ist der schnelle Weg
 dorthin: Nach dem Einlesen stehen dort alle Namen und Adressen aus Absender-,

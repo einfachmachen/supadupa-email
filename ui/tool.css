@@ -969,3 +969,31 @@ button.big:disabled {
 .switch button:disabled {
   opacity: 0.4;
 }
+
+/* Standort im Durchgang: "Dubletten-Satz 10 von 52" -------------------- */
+.lt-pos {
+  align-self: center;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: 14px;
+}
+.lt-pos b {
+  font-size: 14px;
+  color: var(--txt);
+  white-space: nowrap;
+}
+.lt-posbar {
+  width: 120px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--bd);
+  overflow: hidden;
+}
+.lt-posbar .fill {
+  height: 100%;
+  background: var(--pos);
+}
+.lt-title .matchbadge {
+  margin-left: 12px;
+}

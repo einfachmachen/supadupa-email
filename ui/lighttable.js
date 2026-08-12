@@ -194,17 +194,30 @@ export async function openLightTable(ids, opts = {}) {
     const head = el("div", "lt-head");
     const title = el("div", "lt-title");
     title.append(el("span", null, "Leuchttisch"));
+    // Wo bin ich? Das ist beim Durchgang die wichtigste Angabe und darf nicht
+    // im grauen Kleingedruckten untergehen.
+    if (opts.review) {
+      const pos = el("div", "lt-pos");
+      pos.append(el("b", null, `Dubletten-Satz ${opts.review.index + 1} von ${opts.review.total}`));
+      const bar = el("div", "lt-posbar");
+      const fill = el("div", "fill");
+      fill.style.width = `${Math.round(((opts.review.index + 1) / opts.review.total) * 100)}%`;
+      bar.append(fill);
+      pos.append(bar);
+      title.append(pos);
+    }
+    if (opts.review?.match) {
+      // Woran die Gruppe hängt, gehört sichtbar dorthin, wo entschieden wird —
+      // sonst weiß man beim Zusammenfassen nicht, wie sicher der Fund ist.
+      const badge = el("span", `matchbadge ${opts.review.match.level}`, opts.review.match.text);
+      title.append(badge);
+    }
     title.append(
       el(
         "span",
         "lt-sub",
-        (opts.review ? `Gruppe ${opts.review.index + 1}/${opts.review.total} · ` : "") +
-          `${copies.length} Fassungen · ${cands.attachments.length} Anhänge · ` +
-          `${cands.bodies.length} Textvarianten` +
-          // Woran die Gruppe hängt, gehört sichtbar dorthin, wo entschieden
-          // wird — sonst weiß man beim Zusammenfassen nicht, wie sicher der
-          // Fund ist.
-          (opts.review?.match ? ` · erkannt: ${opts.review.match.text}` : "")
+        `${copies.length} Fassungen · ${cands.attachments.length} Anhänge · ` +
+          `${cands.bodies.length} Textvarianten`
       )
     );
     const help = el("button", "chip", "Wie funktioniert das?");
@@ -1027,7 +1040,7 @@ export async function openLightTable(ids, opts = {}) {
     const pos = el(
       "div",
       "lt-progress",
-      `Gruppe ${r.index + 1} von ${r.total}` + (r.currentMark && r.currentMark !== MARKS.none
+      `Dubletten-Satz ${r.index + 1} von ${r.total}` + (r.currentMark && r.currentMark !== MARKS.none
         ? ` · vorgemerkt: ${
             { merge: "Zusammenfassen", delete: "Löschen", later: "Später" }[r.currentMark]
           }`
