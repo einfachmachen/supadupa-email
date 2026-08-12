@@ -130,7 +130,7 @@ async function saveProfiles() {
   await api.storage.local.set({ profiles: state.profiles });
   // Schritt 2 ist erledigt — zuklappen, damit die Übersicht den Platz bekommt.
   $("#profileBox").open = false;
-  toast("Profile gespeichert.");
+  toast("Festlegungen gespeichert.");
   analyzeAll();
 }
 
@@ -160,7 +160,7 @@ function renderProfiles() {
   const box = $("#profiles");
   box.textContent = "";
   if (!state.profiles.length) {
-    box.append(el("div", "muted", "Noch kein Profil — leg eines an, damit die Namensprüfung greift."));
+    box.append(el("div", "muted", "Noch keine Festlegung — leg eine an, damit die Namensprüfung greift."));
   }
   for (const p of state.profiles) {
     const row = el("div", "profile");
@@ -180,7 +180,7 @@ function renderProfiles() {
       field("preferredEmail", "Richtige Adresse (optional)", p.preferredEmail)
     );
     const del = el("button", "ghost", "×");
-    del.title = "Profil entfernen";
+    del.title = "Festlegung entfernen";
     del.onclick = () => {
       readProfileInputs();
       state.profiles = state.profiles.filter((x) => x.id !== row.dataset.id);
@@ -375,6 +375,21 @@ function buildBook() {
   renderBook();
 }
 
+/**
+ * Der Schiebeschalter über der Liste. Beide Zustände stehen nebeneinander mit
+ * ihrer Anzahl — man sieht also, wohin man wechselt, statt raten zu müssen.
+ */
+function renderBookFilter(sum) {
+  const buttons = document.querySelectorAll("#bookFilter button");
+  if (!buttons.length) return;
+  const [alle, nur] = buttons;
+  alle.textContent = `alle ${sum.total}`;
+  nur.textContent = `nur ${sum.work} uneinheitliche`;
+  alle.classList.toggle("aktiv", !state.bookOnlyWork);
+  nur.classList.toggle("aktiv", state.bookOnlyWork);
+  nur.disabled = !sum.work;
+}
+
 /** Woher stammen die Adressen gerade? Das gehört in die Kopfzeile. */
 function bookSource() {
   if (state.headers.length) return `Ordner (${state.headers.length} Nachrichten)`;
@@ -388,9 +403,7 @@ function renderBook() {
   const sum = summarizeBook(state.book);
   const src = bookSource();
   $("#bookSummary").textContent = src ? `${sum.text} · aus ${src}` : sum.text;
-  $("#btnBookOnlyWork").textContent = state.bookOnlyWork
-    ? `alle ${sum.total} zeigen`
-    : "nur uneinheitliche zeigen";
+  renderBookFilter(sum);
 
   const shown = state.bookOnlyWork ? state.book.filter((e) => e.needsWork) : state.book;
   if (!shown.length) {
@@ -516,7 +529,7 @@ async function saveBook() {
   $("#profileBox").open = true;
   if (state.headers.length) regroup();
   analyzeAll();
-  toast(`${added} Profil(e) neu, ${updated} aktualisiert — jetzt Schritt 2 prüfen.`);
+  toast(`${added} Festlegung(en) neu, ${updated} aktualisiert — jetzt Schritt 2 prüfen.`);
 }
 
 /**
@@ -1261,12 +1274,19 @@ $("#btnBookSuggest").onclick = () => {
     }
   }
   renderBook();
-  toast(n ? `${n} Vorschläge eingetragen — bitte prüfen und speichern.` : "Nichts zu ergänzen.");
+  toast(
+    n
+      ? `${n} leere Feld(er) gefüllt: je Adresse die häufigste echte ` +
+        "Schreibweise. Bitte durchsehen und speichern."
+      : "Alle Felder sind bereits gefüllt."
+  );
 };
-$("#btnBookOnlyWork").onclick = () => {
-  state.bookOnlyWork = !state.bookOnlyWork;
-  renderBook();
-};
+for (const b of document.querySelectorAll("#bookFilter button")) {
+  b.onclick = () => {
+    state.bookOnlyWork = b.dataset.only === "1";
+    renderBook();
+  };
+}
 $("#btnAddProfile").onclick = () => {
   readProfileInputs();
   state.profiles.push({ id: String(Date.now()), preferredName: "", names: [], emails: [] });

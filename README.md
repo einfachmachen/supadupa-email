@@ -38,7 +38,7 @@ Der jeweils aktuelle Stand liegt versioniert im Ordner `releases/`; jede
 ausgelieferte Fassung bekommt eine eigene Nummer, damit klar ist, welcher Stand
 gerade installiert ist:
 
-[releases/supadupa-mailcheck-1.0.13.xpi](releases/supadupa-mailcheck-1.0.13.xpi)
+[releases/supadupa-mailcheck-1.0.14.xpi](releases/supadupa-mailcheck-1.0.14.xpi)
 
 **Adressen in diesem Ordner** (Klappe über den Profilen) ist der schnelle Weg
 dorthin: Nach dem Einlesen stehen dort alle Namen und Adressen aus Absender-,
@@ -52,13 +52,18 @@ Je Adresse stehen **alle gefundenen
 Schreibweisen samt Häufigkeit** („Bernd Muster (12)", „Muster, Bernd (3)",
 „ohne Namen (5)") und der Zahl der abweichenden Vorkommen. Ein Feld je
 Adresse, einmal die richtige Schreibweise festlegen (oder einen der Chips
-anklicken), *Als Profile speichern* — und ab da zeigt der Leuchttisch überall
+anklicken), *Festlegungen speichern* — und ab da zeigt der Leuchttisch überall
 gleich den richtigen Namen, ohne dass dort noch etwas anzupassen wäre.
 
-- *Vorschläge übernehmen* füllt alle leeren Felder mit der häufigsten echten
-  Schreibweise (ein Name, der bloß die Adresse wiederholt, zählt nicht).
-- *nur uneinheitliche zeigen* blendet die Adressen aus, bei denen ohnehin
-  alles stimmt — das ist die Vorgabe.
+- *Leere Felder mit der häufigsten Schreibweise füllen* trägt in jedes noch
+  leere Feld die Variante ein, die bei dieser Adresse am häufigsten vorkommt
+  und wie ein echter Name aussieht (ein „Name", der bloß die Adresse
+  wiederholt, zählt nicht). Bereits ausgefüllte Felder bleiben unangetastet,
+  und gespeichert wird dabei nichts — es ist eine Vorbefüllung zum Durchsehen.
+- Der Schiebeschalter über der Liste zeigt beide Zustände nebeneinander:
+  *alle 9* ⇄ *nur 8 uneinheitliche*. Vorgabe ist „nur uneinheitliche".
+- Die Knöpfe stehen unter der Liste — dort, wo man nach dem Durchsehen
+  ankommt.
 
 **Nicht nur der Name, auch die Adresse.** Unter dem Namensfeld steht ein
 zweites Feld für die *richtige Adresse*. Gebraucht wird es, wenn die in den
@@ -71,6 +76,9 @@ Ordner nach einer echten Adresse derselben Person und trägt sie als Vorschlag
 ein. Beim Speichern landen alte und richtige Adresse in **einem** Profil
 (`preferredEmail`), und die Prüfung meldet ab dann `old-address` mit der
 richtigen Adresse als Vorschlag — beim Zusammenfassen wird sie eingesetzt.
+
+In der Oberfläche heißen diese Einträge **Festlegungen** („zu dieser Adresse
+gehört dieser Name"); im Code und im Speicher heißen sie weiterhin `profiles`.
 
 Alternativ von Hand pflegen oder aus dem Thunderbird-Adressbuch übernehmen.
 
@@ -308,7 +316,7 @@ Voraussetzung: **Thunderbird 128+** (wegen `messages.import`).
 Die Seite ist von oben nach unten in der Reihenfolge aufgebaut, in der man sie
 abarbeitet: ganz oben der **Startknopf**, der den Leuchttisch bei der ersten
 offenen Dublette öffnet, darunter **Schritt 1: Adressen in diesem Ordner**,
-**Schritt 2: Namen & Adressen (Profile)**, **Schritt 3: Übersicht** und
+**Schritt 2: Festlegungen (welcher Name gehört zu welcher Adresse)**, **Schritt 3: Übersicht** und
 **Schritt 4: Vormerkungen**. Erst die Adressen klären, dann die Profile prüfen,
 dann die Dubletten ansehen — Schritt 1 und 2 klappen sich nach dem Speichern
 von selbst zu, damit die Übersicht den ganzen Platz bekommt. Der Startknopf

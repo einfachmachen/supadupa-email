@@ -41,31 +41,41 @@
           der richtige Name, darunter die richtige Adresse, falls die gefundene
           veraltet ist (etwa eine Exchange-Ersatzkennung eines alten
           Firmenpostfachs). Ein Klick auf eine der Pillen übernimmt diese
-          Schreibweise ins Feld. Verbindlich wird alles erst mit
-          „Als Profile speichern“ — danach zeigt der Leuchttisch überall das
-          Richtige, ohne dass du dort noch etwas anpassen musst.
+          Schreibweise ins Feld. Verbindlich wird alles erst unten mit
+          <b>Festlegungen speichern</b> — danach zeigt der Leuchttisch überall
+          das Richtige, ohne dass du dort noch etwas anpassen musst.
         </p>
-        <div class="bar">
-          <button id="btnBookSuggest" class="ghost">Vorschläge übernehmen</button>
-          <button id="btnBookOnlyWork" class="ghost">nur uneinheitliche zeigen</button>
-          <button id="btnBookSave" class="primary">Als Profile speichern</button>
+        <div class="switch" id="bookFilter" role="group" aria-label="Welche Adressen anzeigen">
+          <button data-only="0">alle</button>
+          <button data-only="1">nur uneinheitliche</button>
         </div>
         <div id="bookList"></div>
+        <div class="bar" style="margin-top: 12px">
+          <button id="btnBookSuggest" class="ghost">
+            Leere Felder mit der häufigsten Schreibweise füllen
+          </button>
+          <button id="btnBookSave" class="primary">Festlegungen speichern</button>
+        </div>
       </details>
 
       <details id="profileBox" class="card">
-        <summary><span class="step">Schritt 2</span> Namen &amp; Adressen (Profile)</summary>
+        <summary>
+          <span class="step">Schritt 2</span> Festlegungen — welcher Name gehört
+          zu welcher Adresse
+        </summary>
         <p class="muted">
-          Ein Profil sagt: „Zu dieser Adresse gehört dieser Name.“ Das gilt für
-          <b>jede</b> Person, nicht nur für deine eigenen Adressen. Daran misst
-          die Prüfung Absender, Empfänger und Kopie — fehlender, falscher oder
-          abweichend geschriebener Name wird dadurch überhaupt erst erkennbar.
+          Eine Festlegung sagt: „Zu dieser Adresse gehört dieser Name.“ Sie gilt
+          für <b>jede</b> Person, nicht nur für deine eigenen Adressen. Daran
+          misst die Prüfung Absender, Empfänger und Kopie — fehlender, falscher
+          oder abweichend geschriebener Name wird dadurch überhaupt erst
+          erkennbar. Aus Schritt 1 landen die Einträge automatisch hier; von
+          Hand ergänzen geht ebenfalls.
         </p>
         <div id="profiles"></div>
         <div class="bar" style="margin-top: 10px">
-          <button id="btnAddProfile" class="ghost">+ Profil</button>
+          <button id="btnAddProfile" class="ghost">+ Festlegung</button>
           <button id="btnFromBook" class="ghost">Aus Adressbuch übernehmen</button>
-          <button id="btnSaveProfiles" class="primary">Profile speichern</button>
+          <button id="btnSaveProfiles" class="primary">Festlegungen speichern</button>
         </div>
       </details>
 

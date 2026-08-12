@@ -943,3 +943,29 @@ button.big:disabled {
   margin-top: 6px;
   font-size: 12px;
 }
+
+/* Schiebeschalter: beide Zustaende sichtbar ---------------------------- */
+.switch {
+  display: inline-flex;
+  border: 1px solid var(--bd);
+  border-radius: 999px;
+  padding: 3px;
+  gap: 3px;
+  margin-bottom: 10px;
+}
+.switch button {
+  border: 0;
+  background: transparent;
+  color: var(--txt2);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 12.5px;
+  min-height: 0;
+}
+.switch button.aktiv {
+  background: var(--pos);
+  color: #1b1e22;
+}
+.switch button:disabled {
+  opacity: 0.4;
+}
