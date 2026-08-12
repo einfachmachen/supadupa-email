@@ -916,3 +916,30 @@ button.big {
 button.big:disabled {
   opacity: 0.45;
 }
+
+/* Woran eine Gruppe erkannt wurde -------------------------------------- */
+.matchbadge {
+  display: inline-block;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--bd);
+  margin-right: 8px;
+  vertical-align: middle;
+}
+.matchbadge.strict {
+  color: var(--pos);
+  border-color: var(--pos);
+}
+.matchbadge.normal {
+  color: var(--gold);
+  border-color: rgba(245, 166, 35, 0.6);
+}
+.matchbadge.lose {
+  color: var(--neg);
+  border-color: rgba(255, 95, 86, 0.6);
+}
+#modeLadder {
+  margin-top: 6px;
+  font-size: 12px;
+}

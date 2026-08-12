@@ -9,6 +9,8 @@ import {
   removableIds,
   differences,
   MODES,
+  MODE_ORDER,
+  looserMode,
 } from "../lib/dedupe.js";
 
 const PROFILES = [
@@ -128,4 +130,37 @@ test("10.000 Kopfdaten gruppieren bleibt schnell", () => {
   assert.equal(groups.length, 2500);
   assert.equal(summarize(groups).removable, 7500);
   assert.ok(ms < 3000, `Gruppierung dauerte ${ms} ms`);
+});
+
+test("Schärfegrade bilden eine Leiter vom sichersten zum großzügigsten", () => {
+  assert.deepEqual(MODE_ORDER, [MODES.strict, MODES.normal, MODES.lose]);
+  assert.equal(looserMode(MODES.strict), MODES.normal);
+  assert.equal(looserMode(MODES.normal), MODES.lose);
+  assert.equal(looserMode(MODES.lose), null, "locker ist das Ende der Leiter");
+});
+
+test("jede Gruppe sagt, woran sie erkannt wurde", () => {
+  const mit = [
+    { id: 1, headerMessageId: "<a@x>", author: "a@x.de", subject: "Rechnung", date: "2024-01-01T10:00:00Z" },
+    { id: 2, headerMessageId: "<a@x>", author: "a@x.de", subject: "Rechnung", date: "2024-01-01T10:00:00Z" },
+  ];
+  const ohne = [
+    { id: 3, author: "b@x.de", subject: "Angebot", date: "2024-02-01T09:00:00Z" },
+    { id: 4, author: "b@x.de", subject: "Angebot", date: "2024-02-01T09:00:30Z" },
+  ];
+  const streng = groupDuplicates(mit, { mode: MODES.strict });
+  assert.equal(streng.length, 1);
+  assert.equal(streng[0].match.level, MODES.strict);
+
+  // Im Modus „normal“ bleibt eine über die Message-ID gefundene Gruppe
+  // trotzdem als streng erkannt — das ist der sicherere Fund.
+  const gemischt = groupDuplicates([...mit, ...ohne], { mode: MODES.normal });
+  const perId = gemischt.find((g) => g.key.startsWith("mid:"));
+  const perZeit = gemischt.find((g) => g.key.startsWith("norm:"));
+  assert.equal(perId.match.level, MODES.strict);
+  assert.equal(perZeit.match.level, MODES.normal);
+  assert.match(perZeit.match.text, /Minute/);
+
+  // Ohne Message-ID findet „streng“ diese Gruppe nicht
+  assert.equal(groupDuplicates(ohne, { mode: MODES.strict }).length, 0);
 });

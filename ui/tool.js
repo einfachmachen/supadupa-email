@@ -18,6 +18,8 @@ import {
   summarize,
   removableIds,
   MODES,
+  MODE_LABELS,
+  looserMode,
 } from "../lib/dedupe.js";
 import { openLightTable } from "./lighttable.js";
 import {
@@ -64,7 +66,11 @@ const state = {
   folder: null, // aktuell geladener Ordner
   headers: [], // Kopfdaten des Ordners (ohne Body)
   groups: [], // Duplikat-Gruppen
-  mode: MODES.normal,
+  // Immer beim sichersten Schärfegrad anfangen: „streng“ findet nur
+  // zweifelsfreie Kopien. Erst wenn dort nichts (mehr) zu holen ist, wird
+  // gelockert — Schritt für Schritt und sichtbar.
+  mode: MODES.strict,
+  autoStepped: [], // Schärfegrade, die automatisch übersprungen wurden
   review: null, // laufender Durchgang: nur Vormerkungen, keine Änderungen
   table: null, // offener Leuchttisch
   book: [], // Adressen des Ordners (Namen-Varianten je Adresse)
@@ -299,6 +305,9 @@ async function loadFolder(folder) {
       onProgress: (n) => setStatus(`Ordner wird gelesen … ${n} Nachrichten`),
     });
     buildBook();
+    // Jeder Ordner beginnt beim sichersten Schärfegrad.
+    state.mode = MODES.strict;
+    state.autoStepped = [];
     regroup();
   } catch (e) {
     console.error(e);
@@ -309,11 +318,20 @@ async function loadFolder(folder) {
   }
 }
 
-function regroup() {
+function regroup({ auto = true } = {}) {
   state.groups = groupDuplicates(state.headers, {
     mode: state.mode,
     profiles: state.profiles,
   });
+  // Findet der sichere Schärfegrad gar nichts, hat es keinen Sinn, den
+  // Benutzer davorstehen zu lassen — dann eine Stufe lockerer, aber sichtbar
+  // protokolliert. Nur solange noch nichts vorgemerkt ist.
+  const nothingMarked = !state.review || markCounts(state.review).decided === 0;
+  if (auto && nothingMarked && !state.groups.length && looserMode(state.mode)) {
+    state.autoStepped = [...state.autoStepped, state.mode];
+    state.mode = looserMode(state.mode);
+    return regroup({ auto: true });
+  }
   const s = summarize(state.groups);
   setStatus(
     `${state.headers.length} Nachrichten · ${s.groups} Duplikat-Gruppen · ` +
@@ -523,12 +541,16 @@ function renderGroups() {
     `${ov.groups} Gruppen mit Dubletten (${ov.inGroups} Kopien, ${ov.removable} entfernbar)` +
     (ov.singles ? ` · ${ov.singles} Einzelstücke ohne Dublette` : "");
 
-  const modeName = { strict: "streng", normal: "normal", lose: "locker" }[state.mode];
-  $("#modeHint").textContent = `Maßstab: ${modeName} — klicken oder rechtsklicken zum Wechseln`;
+  renderMode();
 
   if (!state.groups.length) {
     body.append(
-      el("div", "muted", "Keine Dubletten nach diesem Maßstab. Ein Klick auf den Maßstab wechselt ihn.")
+      el(
+        "div",
+        "muted",
+        "Keine Dubletten — auch beim großzügigsten Schärfegrad nicht. In diesem " +
+          "Ordner ist nichts doppelt."
+      )
     );
     renderMarksBox();
     updateStart();
@@ -558,6 +580,59 @@ function renderGroups() {
   }
   renderMarksBox();
   updateStart();
+}
+
+/**
+ * Der Schärfegrad: welcher gilt, was das heißt, und was automatisch
+ * übersprungen wurde. Ohne diese Zeile weiß man nicht, wie sicher ein Fund ist.
+ */
+function renderMode() {
+  $("#modeHint").textContent = `Schärfegrad: ${MODE_LABELS[state.mode]}`;
+  const erklaerung = {
+    [MODES.strict]: "nur zweifelsfreie Kopien (gleiche Message-ID)",
+    [MODES.normal]: "Message-ID, sonst Absender + Betreff + dieselbe Minute",
+    [MODES.lose]: "Absender + Betreff + derselbe Tag — bitte jede Gruppe ansehen",
+  }[state.mode];
+  const ladder = $("#modeLadder");
+  ladder.textContent = "";
+  ladder.append(el("span", null, `${erklaerung}. `));
+  if (state.autoStepped.length) {
+    ladder.append(
+      el(
+        "span",
+        null,
+        `Übersprungen, weil dort nichts gefunden wurde: ` +
+          `${state.autoStepped.map((m) => MODE_LABELS[m]).join(", ")}. `
+      )
+    );
+  }
+  const next = looserMode(state.mode);
+  if (next && state.groups.length && !openGroups().length) {
+    const b = el("button", "chip", `alles abgearbeitet — weiter mit „${MODE_LABELS[next]}“`);
+    b.onclick = () => switchMode(next);
+    ladder.append(b);
+  }
+}
+
+/** Schärfegrad von Hand wechseln — die Gruppen bilden sich dabei neu. */
+function switchMode(mode) {
+  if (!mode || mode === state.mode) return;
+  if (
+    state.review &&
+    markCounts(state.review).decided &&
+    !window.confirm(
+      "Ein anderer Schärfegrad bildet die Gruppen neu — die bisherigen " +
+        "Vormerkungen gehen dabei verloren. Fortfahren?"
+    )
+  ) {
+    return;
+  }
+  state.mode = mode;
+  state.autoStepped = [];
+  state.review = null;
+  // Von Hand gewählt heißt: genau dieser Grad, keine automatische Stufe weiter.
+  if (state.headers.length) regroup({ auto: false });
+  else renderGroups();
 }
 
 /** Gruppen, die noch in die Übersicht gehören: offen oder „später“. */
@@ -609,6 +684,12 @@ function renderGroupList(groups, total) {
           decodeHeaderValue(first.author || "")
       )
     );
+    if (g.match) {
+      const badge = el("span", `matchbadge ${g.match.level}`, MODE_LABELS[g.match.level]);
+      badge.title = g.match.text;
+      info.append(el("div", "meta", `erkannt: ${g.match.text}`));
+      info.prepend(badge);
+    }
     const open = el("button", "chip", "ansehen");
     open.onclick = () => startReview(state.groups.indexOf(g));
     row.append(info, open);
@@ -718,6 +799,7 @@ async function openReviewAt(index) {
       review: {
         index,
         total: state.groups.length,
+        match: group.match,
         currentMark: markOf(state.review, group.key),
         onDecide: async (kind) => {
           if (kind) state.review = { ...setMark(state.review, group.key, kind), index };
@@ -1237,21 +1319,7 @@ document.addEventListener("click", (ev) => {
 for (const b of modeMenu.querySelectorAll("button")) {
   b.onclick = () => {
     closeModeMenu();
-    if (b.dataset.mode === state.mode) return;
-    if (
-      state.review &&
-      markCounts(state.review).decided &&
-      !window.confirm(
-        "Ein anderer Maßstab bildet die Gruppen neu — die bisherigen " +
-          "Vormerkungen gehen dabei verloren. Fortfahren?"
-      )
-    ) {
-      return;
-    }
-    state.mode = b.dataset.mode;
-    state.review = null;
-    if (state.headers.length) regroup();
-    else renderGroups();
+    switchMode(b.dataset.mode);
   };
 }
 

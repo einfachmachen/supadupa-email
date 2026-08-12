@@ -200,7 +200,11 @@ export async function openLightTable(ids, opts = {}) {
         "lt-sub",
         (opts.review ? `Gruppe ${opts.review.index + 1}/${opts.review.total} · ` : "") +
           `${copies.length} Fassungen · ${cands.attachments.length} Anhänge · ` +
-          `${cands.bodies.length} Textvarianten`
+          `${cands.bodies.length} Textvarianten` +
+          // Woran die Gruppe hängt, gehört sichtbar dorthin, wo entschieden
+          // wird — sonst weiß man beim Zusammenfassen nicht, wie sicher der
+          // Fund ist.
+          (opts.review?.match ? ` · erkannt: ${opts.review.match.text}` : "")
       )
     );
     const help = el("button", "chip", "Wie funktioniert das?");

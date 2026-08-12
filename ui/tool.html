@@ -26,15 +26,7 @@
         <select id="folderSel" title="Ganzen Ordner laden und auf Duplikate prüfen">
           <option value="">Ordner wählen …</option>
         </select>
-        <span id="modeHint" class="muted"></span>
         <button id="btnLightTable" class="ghost">Leuchttisch für geladene Mails</button>
-      </div>
-
-      <div class="bar startbar">
-        <button id="btnStart" class="primary big" disabled>
-          Leuchttisch starten
-        </button>
-        <span id="startHint" class="muted">Erst einen Ordner laden.</span>
       </div>
 
       <details id="bookBox" class="card">
@@ -80,13 +72,23 @@
       <div id="dupes" class="card hidden">
         <section class="block" style="border-top: 0; margin-top: 0; padding-top: 0">
           <h3><span class="step">Schritt 3</span> Übersicht</h3>
+          <div class="bar startbar">
+            <button id="btnStart" class="primary big" disabled>
+              Leuchttisch starten
+            </button>
+            <span id="startHint" class="muted">Erst einen Ordner laden.</span>
+          </div>
           <div id="dupeSummary" class="muted"></div>
           <div class="bar" style="margin-top: 10px">
+            <button id="modeHint" class="ghost" title="Schärfegrad wechseln">
+              Schärfegrad: streng
+            </button>
             <label class="muted" style="display: flex; align-items: center; gap: 6px">
               <input type="checkbox" id="permDelete" style="min-height: 0" />
               endgültig löschen statt Papierkorb
             </label>
           </div>
+          <div id="modeLadder" class="muted"></div>
           <div id="dupesBody" style="margin-top: 10px"></div>
         </section>
       </div>
@@ -100,15 +102,15 @@
       </div>
 
       <div id="modeMenu" class="ctxmenu hidden">
-        <div class="ctxtitle">Maßstab für Dubletten</div>
+        <div class="ctxtitle">Schärfegrad der Übereinstimmung</div>
         <button data-mode="strict">
-          <b>streng</b><span>gleiche Message-ID — echte Kopien</span>
+          <b>streng</b><span>gleiche Message-ID — zweifelsfrei dieselbe Nachricht</span>
         </button>
         <button data-mode="normal">
-          <b>normal</b><span>ID, sonst Absender + Betreff + Minute</span>
+          <b>normal</b><span>ID, sonst Absender + Betreff + dieselbe Minute</span>
         </button>
         <button data-mode="lose">
-          <b>locker</b><span>Absender + Betreff + Tag</span>
+          <b>locker</b><span>Absender + Betreff + derselbe Tag — bitte genau ansehen</span>
         </button>
       </div>
 

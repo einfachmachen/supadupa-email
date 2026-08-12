@@ -38,7 +38,7 @@ Der jeweils aktuelle Stand liegt versioniert im Ordner `releases/`; jede
 ausgelieferte Fassung bekommt eine eigene Nummer, damit klar ist, welcher Stand
 gerade installiert ist:
 
-[releases/supadupa-mailcheck-1.0.12.xpi](releases/supadupa-mailcheck-1.0.12.xpi)
+[releases/supadupa-mailcheck-1.0.13.xpi](releases/supadupa-mailcheck-1.0.13.xpi)
 
 **Adressen in diesem Ordner** (Klappe über den Profilen) ist der schnelle Weg
 dorthin: Nach dem Einlesen stehen dort alle Namen und Adressen aus Absender-,
@@ -311,21 +311,31 @@ offenen Dublette öffnet, darunter **Schritt 1: Adressen in diesem Ordner**,
 **Schritt 2: Namen & Adressen (Profile)**, **Schritt 3: Übersicht** und
 **Schritt 4: Vormerkungen**. Erst die Adressen klären, dann die Profile prüfen,
 dann die Dubletten ansehen — Schritt 1 und 2 klappen sich nach dem Speichern
-von selbst zu, damit die Übersicht den ganzen Platz bekommt.
+von selbst zu, damit die Übersicht den ganzen Platz bekommt. Der Startknopf
+sitzt oben in Schritt 3, gleich neben dem Schärfegrad, mit dem die Gruppen
+gebildet wurden; Schritt 1 und 2 sind davon unabhängig.
 
 Der Ablauf im Einzelnen:
 
 1. **Ordner wählen.** Er wird vollständig eingelesen (nur Kopfdaten,
    seitenweise) und nach Dubletten gruppiert.
-2. **Maßstab prüfen.** Rechtsklick auf die Übersicht (oder Klick auf die
-   Maßstab-Anzeige) öffnet das Kontextmenü mit **streng · normal · locker**.
-   Die Gruppen bilden sich sofort neu.
+2. **Schärfegrad.** Wie genau müssen zwei Mails übereinstimmen, damit sie als
+   Dublette gelten? Jeder Ordner beginnt beim **sichersten** Grad; erst wenn
+   dort nichts gefunden wird, geht es automatisch eine Stufe weiter — sichtbar
+   protokolliert („Übersprungen, weil dort nichts gefunden wurde: streng"). Von
+   Hand wechseln geht über den Knopf *Schärfegrad* in Schritt 3 oder per
+   Rechtsklick auf die Übersicht.
 
-   | Modus | Gruppiert nach |
+   | Schärfegrad | Zwei Mails gelten als dieselbe, wenn … |
    |---|---|
-   | **streng** | gleiche `Message-ID` — echte Kopien derselben Nachricht |
-   | **normal** (Vorgabe) | `Message-ID`, sonst Absender + Betreff + Minute |
-   | **locker** | Absender + Betreff + Tag — findet auch neu zugestellte Kopien |
+   | **streng** (Start) | die `Message-ID` gleich ist — zweifelsfrei dieselbe Nachricht |
+   | **normal** | `Message-ID`, sonst Absender + Betreff + dieselbe Minute |
+   | **locker** | Absender + Betreff + derselbe Tag — findet auch neu zugestellte Kopien |
+
+   Jede gefundene Gruppe trägt eine farbige Marke, **woran** sie erkannt wurde
+   — auch im Leuchttisch. Im Grad *normal* können einzelne Gruppen trotzdem
+   über die Message-ID gefunden worden sein; die tragen dann die grüne Marke
+   *streng*, weil der Fund sicherer ist als der eingestellte Grad verspricht.
 
 3. **Übersicht lesen (Schritt 3).** „1.482 Nachrichten · 1.190 eindeutige · 214
    Gruppen mit Dubletten (506 Kopien, 292 entfernbar)". Aufgeführt sind hier nur
