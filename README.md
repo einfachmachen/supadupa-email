@@ -38,7 +38,7 @@ Der jeweils aktuelle Stand liegt versioniert im Ordner `releases/`; jede
 ausgelieferte Fassung bekommt eine eigene Nummer, damit klar ist, welcher Stand
 gerade installiert ist:
 
-[releases/supadupa-mailcheck-1.0.16.xpi](releases/supadupa-mailcheck-1.0.16.xpi)
+[releases/supadupa-mailcheck-1.0.17.xpi](releases/supadupa-mailcheck-1.0.17.xpi)
 
 **Adressen in diesem Ordner** (Klappe über den Profilen) ist der schnelle Weg
 dorthin: Nach dem Einlesen stehen dort alle Namen und Adressen aus Absender-,
@@ -188,7 +188,12 @@ Mittelpunkt** — alles andere ist zugeklappt, bis es gebraucht wird.
      steckt zusammengeklappt in einem `<details>`, Inline-Bilder (`cid:`)
      kommen aus der Nachricht selbst. Angezeigt wird in einem **iframe ohne
      Skriptrechte** mit eigener `default-src 'none'`-CSP; externe Bilder
-     werden blockiert und als Platzhalter markiert (keine Zählpixel).
+     werden blockiert und als Platzhalter markiert (keine Zählpixel). Unter
+     der Ansicht steht dafür ein Knopf **„externe Bilder anzeigen"**: er lädt
+     sie für diese eine Ansicht nach — mit dem Hinweis, dass der Absender
+     dadurch erfährt, dass und wann du die Mail geöffnet hast. Das ist der
+     Unterschied zu Thunderbirds eigener Ansicht, in der Bilder erlaubter
+     Absender sofort erscheinen.
    - **Text**: der gesäuberte Klartext, ohne jede Markierung, direkt
      bearbeitbar — genau das, was gespeichert wird.
    - **Vergleich**: alle Fassungen überlagert, Unterschiede farbig (weiß = in
@@ -407,7 +412,12 @@ und würden nie zueinander finden.
 Deshalb läuft jeder Vergleich über `lib/textclean.js`: C0/C1-Steuerzeichen,
 Zero-Width-Zeichen, Bidi-Marken, bedingte Trennstriche, Ersatzzeichen (`�`),
 Quoted-Printable-Reste und Rahmenzeilen fliegen **vor** dem Vergleich raus;
-geschützte Leerzeichen werden zu normalen. Der Leuchttisch meldet oben, in
+geschützte Leerzeichen werden zu normalen, und stehengebliebene
+RTF-Befehle (`\sb280`, `\par`, `\pard` …) fliegen raus — die entstehen beim
+Wandeln aus Word/RTF und stehen dann sichtbar mitten im Fließtext, auch in
+Thunderbirds eigener Ansicht. Windows-Pfade wie `C:\Users\…` bleiben
+unangetastet, weil nur bekannte Befehlswörter erkannt werden. Der
+Leuchttisch meldet oben, in
 welcher Kopie wie viel davon steckte — und der neu gebaute Text ist die
 gesäuberte Fassung.
 

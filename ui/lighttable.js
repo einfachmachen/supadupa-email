@@ -104,6 +104,7 @@ export async function openLightTable(ids, opts = {}) {
     // Blick eine leere Anzeige.
     mode: anyHtml ? "formatiert" : "lesen", // formatiert | lesen | vergleich | original
     showHistory: false,
+    allowRemote: false, // externe Bilder erst auf ausdrücklichen Wunsch
     readerUrl: null,
     keepHtml: true, // HTML samt eingebetteter Bilder erhalten (wenn vorhanden)
     activeCopyId: null, // null = beste Fassung aus allen Kopien
@@ -563,6 +564,7 @@ export async function openLightTable(ids, opts = {}) {
       images: pool.byCid,
       stems: pool.byStem,
       showHistory: state.showHistory,
+      allowRemote: state.allowRemote,
     });
 
     const frame = document.createElement("iframe");
@@ -585,6 +587,27 @@ export async function openLightTable(ids, opts = {}) {
       const w = el("span", null, `${built.blockedRemote} externe Bilder blockiert`);
       w.style.color = "var(--gold)";
       note.append(w);
+      // Vom Absender nachgeladene Bilder verraten ihm, dass und wann die Mail
+      // geöffnet wurde. Deshalb bleibt es blockiert, bis du es willst.
+      const b = el("button", "chip", "externe Bilder anzeigen");
+      b.title =
+        "Lädt Bilder vom Server des Absenders nach. Damit erfährt er, dass " +
+        "du die Mail gerade ansiehst (Zählpixel). Gilt nur für diese Ansicht.";
+      b.onclick = () => {
+        state.allowRemote = true;
+        render();
+      };
+      note.append(b);
+    } else if (state.allowRemote) {
+      const w = el("span", null, "externe Bilder werden geladen");
+      w.style.color = "var(--gold)";
+      note.append(w);
+      const b = el("button", "chip", "wieder blockieren");
+      b.onclick = () => {
+        state.allowRemote = false;
+        render();
+      };
+      note.append(b);
     }
     if (built.filled?.length) {
       const g = el("span", null, `${built.filled.length} Bild(er) aus anderer Kopie ergänzt`);

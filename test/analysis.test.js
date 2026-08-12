@@ -10,6 +10,8 @@ import {
   normalize,
 } from "../lib/similarity.js";
 import { checkAttachment, checkAttachments, suggestName, splitName } from "../lib/attachments.js";
+import { cleanText } from "../lib/textclean.js";
+import { buildReaderDocument } from "../lib/htmlmail.js";
 
 const MAIL_A = `Guten Tag,
 
@@ -135,4 +137,39 @@ test("Namensvorschlag enthält Datum, Betreff und Belegnummer", () => {
   assert.match(s, /Rechnung/i);
   assert.match(s, /\.pdf$/);
   assert.deepEqual(splitName("a.b.pdf"), { base: "a.b", ext: "pdf" });
+});
+
+test("stehengebliebene RTF-Befehle werden entfernt und gemeldet", () => {
+  const roh = String.raw`\sb280Sehr geehrter Herr Merz,
+
+\sb280vielen Dank für Ihre Bestellung.
+\par Pfad C:\Users\test bleibt unangetastet.`;
+  const { text, findings } = cleanText(roh);
+  assert.ok(!text.includes("sb280"), "\\sb280 muss verschwinden");
+  assert.ok(text.includes("Sehr geehrter Herr Merz"));
+  assert.ok(text.includes(String.raw`C:\Users\test`), "Windows-Pfade bleiben stehen");
+  assert.equal(findings.find((f) => f.code === "rtf").count, 3);
+});
+
+test("der HTML-Leser räumt dieselben RTF-Reste weg", () => {
+  const html = String.raw`<div><p>\sb280Sehr geehrter Herr Merz,</p><p>\sb280vielen Dank.</p></div>`;
+  const doc = buildReaderDocument(html, {});
+  assert.ok(!doc.document.includes("sb280"));
+  assert.ok(doc.document.includes("Sehr geehrter Herr Merz"));
+});
+
+test("externe Bilder bleiben blockiert, bis man sie ausdrücklich erlaubt", () => {
+  const html = '<p>Hallo</p><img src="https://tracker.example.com/pixel.gif">';
+  const zu = buildReaderDocument(html, {});
+  assert.equal(zu.blockedRemote, 1);
+  // Die Adresse bleibt als data-blocked-src sichtbar (man soll sehen, wohin
+  // es ginge), aber nicht als src — geladen wird nichts.
+  assert.ok(zu.document.includes('data-blocked-src="https://tracker.example.com/pixel.gif"'));
+  assert.ok(/<img[^>]*\ssrc=""/.test(zu.document), "src muss leer sein");
+  assert.ok(!/img-src[^;]*https:/.test(zu.document), "ohne Erlaubnis kein https im CSP");
+
+  const auf = buildReaderDocument(html, { allowRemote: true });
+  assert.equal(auf.blockedRemote, 0);
+  assert.ok(auf.document.includes("tracker.example.com/pixel.gif"));
+  assert.ok(/img-src[^;]*https:/.test(auf.document));
 });
