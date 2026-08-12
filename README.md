@@ -32,6 +32,14 @@ Grundlage sind **Profile**: „Zu dieser Adresse gehört dieser Name“, mit
 beliebig vielen Schreibweisen und Adressen je Person. Sie gelten für **jede**
 Person — Absender wie Empfänger, nicht nur für die eigenen Adressen.
 
+## Download
+
+Der jeweils aktuelle Stand liegt versioniert im Ordner `releases/`; jede
+ausgelieferte Fassung bekommt eine eigene Nummer, damit klar ist, welcher Stand
+gerade installiert ist:
+
+[releases/supadupa-mailcheck-1.0.11.xpi](releases/supadupa-mailcheck-1.0.11.xpi)
+
 **Adressen in diesem Ordner** (Klappe über den Profilen) ist der schnelle Weg
 dorthin: Nach dem Einlesen stehen dort alle Namen und Adressen aus Absender-,
 Empfänger- und Kopie-Zeilen — aus dem geladenen **Ordner**, und wenn keiner
@@ -262,7 +270,8 @@ weicht ab“.
 **Fertiges Paket bauen**
 
 ```bash
-npm run build      # → dist/supadupa-mailcheck-1.0.0.xpi
+npm run build      # → dist/supadupa-mailcheck-<version>.xpi
+npm run release    # Version +1, packen, nach releases/ kopieren
 ```
 
 Das Paket ist nicht signiert (es liegt nicht auf addons.thunderbird.net).
